@@ -1,0 +1,30 @@
+[project]
+name = "mouse-bluesky"
+version = "0.1.0"
+description = "Logbook-driven planning and Bluesky plans for MOUSE"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "attrs>=23.2.0",
+  "bluesky>=1.11",
+  "bluesky-queueserver>=0.0.21",
+  "h5py>=3.8",
+  "ophyd>=1.7",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pre-commit",
+  "ruff",
+]
+
+[tool.ruff]
+line-length = 120
+lint.select = ["E", "F", "W", "B", "C90", "I"]
+lint.ignore = ["E203", "E266", "E501", "F403", "F401", "F405", "F821"]
+lint.mccabe.max-complexity = 18
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
