@@ -1,18 +1,17 @@
-from ophyd import EpicsMotor
-from ophyd import Device, Component as Cpt
+from ophyd import Component as Cpt
 
 # https://blueskyproject.io/ophyd/user/tutorials/device.html
-
-from ophyd import PVPositioner, EpicsSignal, EpicsSignalRO
-
 from ophyd import (
+    Device,
+    EpicsMotor,
+    EpicsSignal,
+    EpicsSignalRO,
     PseudoPositioner,
-    PseudoSingle)
-from ophyd.pseudopos import (
-    pseudo_position_argument,
-    real_position_argument
+    PseudoSingle,
+    PVPositioner,
+    SoftPositioner,
 )
-from ophyd import SoftPositioner
+from ophyd.pseudopos import pseudo_position_argument, real_position_argument
 
 # https://blueskyproject.io/ophyd/user/tutorials/device.html
 
@@ -63,11 +62,11 @@ class Slit(PseudoPositioner):  # Device
     v_gap = Cpt(PseudoSingle, limits=(-5, 10), egu='mm')
     v_pos = Cpt(PseudoSingle, limits=(-5, 5), egu='mm')
 
-    top = Cpt(EpicsMotor, f"top")
-    bot = Cpt(EpicsMotor, f"bot")
-    left = Cpt(EpicsMotor, f"hl")
-    right = Cpt(EpicsMotor, f"hr")
-    
+    top = Cpt(EpicsMotor, "top")
+    bot = Cpt(EpicsMotor, "bot")
+    left = Cpt(EpicsMotor, "hl")
+    right = Cpt(EpicsMotor, "hr")
+
     @pseudo_position_argument
     def forward(self, pseudo_pos):
         "Given a position in the psuedo coordinate system, transform to the real coordinate system."
@@ -111,11 +110,11 @@ class BeamStop(Device):
     bsr = Cpt(EpicsMotor, "bsr")
     bsz = Cpt(EpicsMotor, "bsz")
 
-    
+
     def move_out(self):
         self.old_pos=self.bsr.user_readback.get()
         return self.bsr.move(270)
 
     def move_in(self):
-        
+
         return self.bsr.move(self.old_pos)
