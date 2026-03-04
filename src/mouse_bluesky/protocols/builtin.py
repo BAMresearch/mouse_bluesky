@@ -8,7 +8,7 @@ from .registry import LogbookEntryLike, ProtocolRegistry, ProtocolSpec
 
 
 def _sample_key(e: LogbookEntryLike) -> str:
-    return f"{e.proposal}:{e.sampleid}:{e.sampos}"
+    return f"{e.proposal}-{e.sampleid}"
 
 
 def compile_single_plan_protocol(
@@ -30,7 +30,10 @@ def compile_single_plan_protocol(
             "proposal": entry.proposal,
             "sampleid": entry.sampleid,
             "sampos": entry.sampos,
-        }
+            "sampleposition": entry.positions,
+            "ymd": entry.ymd,
+            "batchnum": entry.batchnum,
+            }
         for k, v in params.items():
             if k == "collate":
                 continue
@@ -46,7 +49,7 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
     """Generator-style protocol -> many PlanSpecs.
 
     Use `__json__` for typed params:
-      - configs: [101, 102, 103]
+      - configs: [123, 160, 127]
       - repeats: 2
       - collate: ALLOW|FORBID (default ALLOW)
     """
@@ -54,30 +57,51 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
     if not isinstance(collate, CollatePolicy):
         raise ValueError("collate must be CollatePolicy after parsing")
 
-    configs = params.get("configs", [101])
-    repeats = int(params.get("repeats", 1))
-
+    configs = params.get("configs", [])
     if not isinstance(configs, list):
         raise ValueError("'configs' must be a list (use __json__ for lists)")
-    if repeats < 1:
-        raise ValueError("'repeats' must be >= 1")
-
     config_ids = [int(x) for x in configs]
+
+    repeats_raw = params.get("repeats", 1)
+
+    # NEW: repeats can be int or list[int] aligned with configs
+    if isinstance(repeats_raw, list):
+        repeats_list = [int(x) for x in repeats_raw]
+        if len(repeats_list) != len(config_ids):
+            raise ValueError(
+                f"'repeats' length ({len(repeats_list)}) must match 'configs' length ({len(config_ids)})"
+            )
+    else:
+        repeats_int = int(repeats_raw)
+        if repeats_int < 1:
+            raise ValueError("'repeats' must be >= 1")
+        repeats_list = [repeats_int] * len(config_ids)
+
     sample_key = _sample_key(entry)
 
     specs: list[PlanSpec] = []
-    step = 0
-    for cfg in config_ids:
-        for r in range(repeats):
+    for step, (cfg, nrep) in enumerate(zip(config_ids, repeats_list, strict=True)):
+        if nrep < 1:
+            raise ValueError(f"repeats[{step}] must be >= 1 (got {nrep})")
+        for r in range(nrep):
             specs.append(
                 PlanSpec(
                     name="measure_yzstage",
-                    kwargs={"entry_row_index": entry.row_index, "config_id": cfg, "repeat_index": r},
+                    kwargs={
+                        "entry_row_index": entry.row_index,
+                        "proposal": entry.proposal,
+                        "sampleid": entry.sampleid,
+                        "sampos": entry.sampos,
+                        "ymd": entry.ymd,            # method call
+                        "batchnum": entry.batchnum,
+                        "config_id": cfg,
+                        "repeat_index": r,
+                        # sampleposition: ideally pass positions directly if JSON-able
+                        "sampleposition": dict(getattr(entry, "positions", {}) or {}),
+                    },
                     meta={"sample_key": sample_key, "config_id": cfg, "step": step, "repeat": r},
                 )
             )
-        step += 1
-
     return CompiledEntry(collate=collate, specs=tuple(specs))
 
 

@@ -15,7 +15,7 @@ def parse_additional_parameters(raw: Mapping[str, str]) -> dict[str, Any]:
     - Optional JSON blob under key '__json__' containing a JSON object. Parsed values override.
 
     Example:
-      {'__json__': '{"repeats": 3, "configs": [101, 102], "collate": "ALLOW"}'}
+      {'__json__': '{"repeats": [3, 4], "configs": [123, 125], "collate": "ALLOW"}'}
     """
     out: dict[str, Any] = {str(k): str(v) for k, v in raw.items()}
 

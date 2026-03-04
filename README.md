@@ -61,3 +61,30 @@ Those belong in the beamline startup/profile repository.
 ## License
 
 Add your preferred license file (e.g., BSD-3-Clause) and update this section.
+
+## Settings and defaults
+
+This package reads default paths from environment variables:
+
+- `MOUSE_DATA_ROOT` → default `root_path` for measurement output (default: `/data/mouse`)
+- `MOUSE_CONFIG_ROOT` → default `config_root` for `{config_id}.nxs` files (default: `/data/mouse_configs`)
+
+You can override both via CLI flags or by injecting `measurement_extra_kwargs` / `apply_config_extra_kwargs` when building `PlanSpec`s.
+
+## CLI
+
+After installation, a small CLI is available:
+
+- Validate planned queue (compile logbook → specs → static validation):
+
+```bash
+mouse-bluesky validate /path/to/logbook.xlsx /path/to/projects --root-path /data/mouse --config-root /data/mouse_configs
+```
+
+- Enqueue into a running Queue Server (fails if validation issues exist):
+
+```bash
+mouse-bluesky enqueue /path/to/logbook.xlsx /path/to/projects --zmq tcp://127.0.0.1:60615 \
+  --root-path /data/mouse --config-root /data/mouse_configs
+```
+

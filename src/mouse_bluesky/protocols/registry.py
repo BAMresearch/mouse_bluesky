@@ -15,6 +15,9 @@ class LogbookEntryLike(Protocol):
     sampos: str
     protocol: str
     additional_parameters: Mapping[str, str]
+    batchnum: int
+    positions: Mapping[str, float]
+    ymd: str
 
 
 CompilerFn = Callable[[LogbookEntryLike, Mapping[str, Any]], CompiledEntry]

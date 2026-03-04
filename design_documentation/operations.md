@@ -84,3 +84,21 @@ Each run’s metadata includes entry identifiers and configuration identifiers.
 Consider adding console scripts (not included here by default):
 - `mouse-logbook-validate` → compile + validate only
 - `mouse-logbook-enqueue` → compile + validate + enqueue
+
+## Defaults (environment variables)
+
+The planner/CLI uses these environment variables:
+
+- `MOUSE_DATA_ROOT` (default `/data/mouse`)
+- `MOUSE_CONFIG_ROOT` (default `/data/mouse_configs`)
+
+They are read via `mouse_bluesky.settings.Settings.from_env()` and can be overridden by CLI flags or by injecting extra kwargs during planning.
+
+## CLI usage
+
+The repository includes a small `mouse-bluesky` CLI:
+
+- `mouse-bluesky validate LOGBOOK PROJECTS_DIR` compiles and statically validates the planned queue.
+- `mouse-bluesky enqueue LOGBOOK PROJECTS_DIR` compiles, validates, and enqueues into a running Queue Server via the ZMQ control address.
+
+These commands are intended for operator workflows where you want fast feedback before running the instrument.
