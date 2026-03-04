@@ -9,6 +9,7 @@ from ..devices.mouse_motors import BeamStop, SampleStage
 
 
 def mouse_eiger_measure(eiger, destination: Path, *, num_images: int) -> Iterator:
+    """Acquire one Eiger reading after staging into a target destination."""
     destination.mkdir(parents=True, exist_ok=True)
     eiger.stage_sigs["cam.file_path"] = destination.as_posix()
     eiger.stage_sigs["cam.num_images"] = int(num_images)
@@ -29,7 +30,7 @@ def measure_yzstage_atomic(
     sampleposition: dict[str, float],
     destination: Path,
 ) -> Iterator:
-    """Atomic measurement: no open_run/close_run, no baseline, no metadata logic."""
+    """Run the low-level Y/Z stage measurement sequence inside an active run."""
     in_position = beam_stop.bsr.position
 
     yield from bps.mv(shutter, 1)

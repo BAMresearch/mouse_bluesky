@@ -8,7 +8,7 @@ from bluesky import plan_stubs as bps
 
 from .atomic import measure_yzstage_atomic
 from .sequence import allocate_sequence_dir
-from .snapshot import snapshot_state  # if you have it
+from .snapshot import snapshot_state
 
 
 def measure_yzstage(
@@ -31,6 +31,7 @@ def measure_yzstage(
     snapshot_signals=(),
     sampleposition: dict[str, float] | None = None,
 ) -> Iterator:
+    """Open one run, capture metadata/snapshot, and execute the atomic measurement."""
     root = Path(root_path)
     if sampleposition is None:
         sampleposition = {}

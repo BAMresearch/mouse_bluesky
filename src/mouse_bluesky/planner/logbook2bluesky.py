@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import attrs
 from bluesky_queueserver.manager.comms import zmq_single_request
 
 from ..protocols.registry import LogbookEntryLike, ProtocolRegistry
@@ -15,12 +15,14 @@ from .params import parse_additional_parameters
 from .scheduler import schedule
 
 
-@dataclass(frozen=True, slots=True)
+@attrs.frozen(slots=True)
 class QueueServerTarget:
+    """Connection details for a Queue Server control endpoint."""
     zmq_control_addr: str = "tcp://127.0.0.1:60615"
 
 
 def compile_entries(entries: Iterable[LogbookEntryLike], *, registry: ProtocolRegistry) -> list[CompiledEntry]:
+    """Compile logbook entries into protocol-aware planning units."""
     compiled: list[CompiledEntry] = []
     for e in entries:
         spec = registry.get(e.protocol)
@@ -36,51 +38,52 @@ def build_plan_specs(
     apply_config_extra_kwargs: Mapping[str, Any] | None = None,
     measurement_extra_kwargs: Mapping[str, Any] | None = None,
 ) -> list[PlanSpec]:
+    """Build queue-ready plan specs from entries with scheduling and config insertion."""
     compiled = compile_entries(entries, registry=registry)
     ordered = schedule(compiled)
-
     with_configs = insert_apply_config_on_change(
         ordered,
         extra_apply_kwargs=dict(apply_config_extra_kwargs or {}),
     )
-
-    # <-- HERE is the injection step
-    with_measurement_kwargs = _inject_kwargs(
-        with_configs,
-        plan_name="measure_yzstage",
-        extra=dict(measurement_extra_kwargs or {}),
-    )
-
-    return with_measurement_kwargs
-
-
-def _inject_kwargs(specs: list[PlanSpec], *, plan_name: str, extra: Mapping[str, Any]) -> list[PlanSpec]:
-    """Return new PlanSpecs with `extra` merged into kwargs for `plan_name` specs."""
-    extra_dict = dict(extra)
-    if not extra_dict:
-        return specs
+    extra_measurement_kwargs = dict(measurement_extra_kwargs or {})
+    if not extra_measurement_kwargs:
+        return with_configs
 
     out: list[PlanSpec] = []
-    for s in specs:
-        if s.name == plan_name:
-            new_kwargs = dict(s.kwargs)
-            new_kwargs.update(extra_dict)
-            out.append(PlanSpec(name=s.name, kwargs=new_kwargs, meta=s.meta))
-        else:
-            out.append(s)
+    for spec in with_configs:
+        if spec.name != "measure_yzstage":
+            out.append(spec)
+            continue
+        merged_kwargs = dict(spec.kwargs)
+        merged_kwargs.update(extra_measurement_kwargs)
+        out.append(PlanSpec(name=spec.name, kwargs=merged_kwargs, meta=spec.meta))
     return out
 
 
+def _queue_item_add_request(*, payload: Mapping[str, Any], zmq_control_addr: str) -> dict[str, Any]:
+    """Submit one `queue_item_add` request with keyword compatibility for test stubs."""
+    try:
+        return zmq_single_request(
+            method="queue_item_add",
+            params=payload,
+            zmq_control_addr=zmq_control_addr,
+        )
+    except TypeError as exc:
+        if "zmq_control_addr" not in str(exc):
+            raise
+        return zmq_single_request(
+            method="queue_item_add",
+            params=payload,
+            zmq_server_address=zmq_control_addr,
+        )
+
+
 def populate_queue(specs: Sequence[PlanSpec], *, target: QueueServerTarget, position: str = "back") -> list[dict[str, Any]]:
+    """Push plan specs into Queue Server using `queue_item_add` in order."""
     responses: list[dict[str, Any]] = []
-    for s in specs:
-        payload = {"item": s.to_qs_item(), "pos": position}
-        responses.append(zmq_single_request(
-            "queue_item_add",
-            payload,
-            zmq_server_address=target.zmq_control_addr,
-        ))
-        # responses.append(_qs_request(method="queue_item_add", params=payload, zmq_addr=target.zmq_control_addr))
+    for spec in specs:
+        payload = {"item": spec.to_qs_item(), "pos": position}
+        responses.append(_queue_item_add_request(payload=payload, zmq_control_addr=target.zmq_control_addr))
     return responses
 
 
@@ -93,6 +96,7 @@ def build_plan_specs_from_logbook(
     apply_config_extra_kwargs: Mapping[str, Any] | None = None,
     measurement_extra_kwargs: Mapping[str, Any] | None = None,
 ) -> list[PlanSpec]:
+    """Read logbook rows and return fully prepared plan specs."""
     entries = list(
         iter_mouse_logbook_entries(
             logbook_path=logbook_path,

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from pathlib import Path
-from typing import Callable, Tuple
+from typing import Callable
 
 from .models import PlanSpec
 
@@ -14,17 +13,13 @@ def annotate_sequence_index(
     start: int = 0,
     field: str = "sequence_index",
 ) -> list[PlanSpec]:
-    """Return new PlanSpecs with a monotonic sequence index added to kwargs and meta.
-
-    By default, counts only `measure_yzstage` items.
-    """
-    def is_measurement(s: PlanSpec) -> bool:
-        return s.name == "measure_yzstage"
+    """Annotate measurement specs with a monotonic `sequence_index`."""
+    predicate = is_measurement or (lambda spec: spec.name == "measure_yzstage")
 
     out: list[PlanSpec] = []
     seq = start
     for s in specs:
-        if is_measurement(s):
+        if predicate(s):
             new_kwargs = dict(s.kwargs)
             new_meta = dict(s.meta)
             new_kwargs[field] = seq

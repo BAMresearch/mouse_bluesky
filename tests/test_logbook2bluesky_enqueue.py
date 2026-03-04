@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Mapping
 
+import attrs
 import pytest
 
 from mouse_bluesky.planner.logbook2bluesky import QueueServerTarget, build_plan_specs, populate_queue
 from mouse_bluesky.protocols.builtin import build_default_registry
 
 
-@dataclass(frozen=True, slots=True)
+@attrs.frozen(slots=True)
 class FakeEntry:
     row_index: int
     proposal: str
@@ -18,7 +18,7 @@ class FakeEntry:
     protocol: str
     additional_parameters: Mapping[str, str]
     batchnum: int = 1
-    positions: Mapping[str, float] = field(default_factory=dict)
+    positions: Mapping[str, float] = attrs.field(factory=dict)
 
     @property
     def ymd(self) -> str:

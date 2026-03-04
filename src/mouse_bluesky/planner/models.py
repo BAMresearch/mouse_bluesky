@@ -29,6 +29,7 @@ class PlanSpec:
     meta: Mapping[str, Any] = attrs.field(factory=dict, converter=dict)
 
     def to_qs_item(self) -> dict[str, Any]:
+        """Convert this spec into a Queue Server item payload."""
         return {"item_type": "plan", "name": self.name, "args": [], "kwargs": dict(self.kwargs)}
 
 

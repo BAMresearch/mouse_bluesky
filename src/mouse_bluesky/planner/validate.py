@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+import attrs
 import h5py
 
 from .models import PlanSpec
 
 
-@dataclass(frozen=True, slots=True)
+@attrs.frozen(slots=True)
 class ValidationIssue:
+    """Represents one static validation finding for planned specs."""
     kind: str
     message: str
     context: Mapping[str, Any] | None = None
@@ -22,6 +23,7 @@ def validate_specs(
     known_plans: set[str] | None = None,
     config_root: str | Path | None = None,
 ) -> list[ValidationIssue]:
+    """Run static checks for plan names, required kwargs, and config files."""
     issues: list[ValidationIssue] = []
 
     if known_plans is not None:
@@ -70,6 +72,7 @@ def validate_specs(
 
 
 def _validate_config_nxs(*, root: Path, config_id: int) -> list[ValidationIssue]:
+    """Validate one `{config_id}.nxs` file against the expected scalar contract."""
     issues: list[ValidationIssue] = []
     path = root / f"{config_id}.nxs"
     if not path.exists():

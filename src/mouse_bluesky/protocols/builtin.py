@@ -8,6 +8,7 @@ from .registry import LogbookEntryLike, ProtocolRegistry, ProtocolSpec
 
 
 def _sample_key(e: LogbookEntryLike) -> str:
+    """Build a stable grouping key used for collation metadata."""
     return f"{e.proposal}-{e.sampleid}"
 
 
@@ -17,7 +18,7 @@ def compile_single_plan_protocol(
     default_collate: CollatePolicy = CollatePolicy.FORBID,
     param_map: Mapping[str, str] | None = None,
 ):
-    """Factory: protocol that compiles to exactly one PlanSpec (one QS item)."""
+    """Build a compiler for protocols that map to exactly one plan item."""
     mapping = dict(param_map or {})
 
     def _compile(entry: LogbookEntryLike, params: Mapping[str, Any]) -> CompiledEntry:
@@ -33,7 +34,7 @@ def compile_single_plan_protocol(
             "sampleposition": entry.positions,
             "ymd": entry.ymd,
             "batchnum": entry.batchnum,
-            }
+        }
         for k, v in params.items():
             if k == "collate":
                 continue
@@ -46,7 +47,7 @@ def compile_single_plan_protocol(
 
 
 def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, Any]) -> CompiledEntry:
-    """Generator-style protocol -> many PlanSpecs.
+    """Compile one entry into repeated per-config `measure_yzstage` plan specs.
 
     Use `__json__` for typed params:
       - configs: [123, 160, 127]
@@ -64,7 +65,6 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
 
     repeats_raw = params.get("repeats", 1)
 
-    # NEW: repeats can be int or list[int] aligned with configs
     if isinstance(repeats_raw, list):
         repeats_list = [int(x) for x in repeats_raw]
         if len(repeats_list) != len(config_ids):
@@ -92,12 +92,11 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
                         "proposal": entry.proposal,
                         "sampleid": entry.sampleid,
                         "sampos": entry.sampos,
-                        "ymd": entry.ymd,            # method call
+                        "ymd": entry.ymd,
                         "batchnum": entry.batchnum,
                         "config_id": cfg,
                         "repeat_index": r,
-                        # sampleposition: ideally pass positions directly if JSON-able
-                        "sampleposition": dict(getattr(entry, "positions", {}) or {}),
+                        "sampleposition": dict(entry.positions),
                     },
                     meta={"sample_key": sample_key, "config_id": cfg, "step": step, "repeat": r},
                 )
@@ -106,6 +105,7 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
 
 
 def build_default_registry() -> ProtocolRegistry:
+    """Create the default protocol registry used by CLI and tests."""
     reg = ProtocolRegistry()
     reg.register(
         ProtocolSpec(

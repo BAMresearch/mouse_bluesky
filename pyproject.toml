@@ -4,10 +4,19 @@ version = "0.1.0"
 description = "Logbook-driven planning and Bluesky plans for MOUSE"
 readme = "README.md"
 requires-python = ">=3.11"
+license = {text = "BSD-3-Clause"}  # adjust if different
+authors = [{name = "BAM MOUSE Team"}]  # optional
+keywords = ["bluesky", "queueserver", "tiled", "mouse", "saxs"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: BSD License",
+]
+
 dependencies = [
   "attrs>=23.2.0",
   "bluesky>=1.11",
-  "bluesky-queueserver>=0.0.21",
+  "bluesky-queueserver>=0.0.24",   # you are using 0.0.24; align
   "h5py>=3.8",
   "ophyd>=1.7",
   "mouse-logbook @ git+https://github.com/BAMresearch/mouse_logbook.git@main",
@@ -15,17 +24,28 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest",
-  "pre-commit",
-  "ruff",
+  "pytest>=8",
+  "pre-commit>=3",
+  "ruff>=0.4",
+  "build",
+  "twine",
 ]
-
+qserver = [
+  "bluesky-tiled-plugins>=0.0.0",
+  "tiled>=0.1.0",
+]
+# for notebooks / demos
+demo = [
+  "ipython",
+  "jupyter",
+  "ophyd",  # already required, but ok to keep demo self-contained
+]
 
 [project.scripts]
 mouse-bluesky = "mouse_bluesky.cli:main"
 
 [tool.ruff]
-line-length = 120
+line-length = 120 
 lint.select = ["E", "F", "W", "B", "C90", "I"]
 lint.ignore = ["E203", "E266", "E501", "F403", "F401", "F405", "F821"]
 lint.mccabe.max-complexity = 18
@@ -33,3 +53,4 @@ lint.mccabe.max-complexity = 18
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "-q"

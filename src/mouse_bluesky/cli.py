@@ -11,6 +11,7 @@ from .settings import Settings
 
 
 def _cmd_build_specs(args: argparse.Namespace) -> int:
+    """Compile and validate planned specs for a logbook input."""
     settings = Settings.from_env(
         root_default=args.root_default,
         config_default=args.config_default,
@@ -55,6 +56,7 @@ def _cmd_build_specs(args: argparse.Namespace) -> int:
 
 
 def _cmd_enqueue(args: argparse.Namespace) -> int:
+    """Compile, validate, and enqueue specs into Queue Server."""
     settings = Settings.from_env(root_default=args.root_default, config_default=args.config_default)
     registry = build_default_registry()
 
@@ -91,10 +93,12 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Run the `mouse-bluesky` CLI entrypoint."""
     p = argparse.ArgumentParser(prog="mouse-bluesky", description="MOUSE Bluesky planning + Queue Server utilities")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def add_common(sp: argparse.ArgumentParser) -> None:
+        """Attach common CLI options shared by subcommands."""
         sp.add_argument("logbook", help="Path to logbook Excel file")
         sp.add_argument("projects", help="Base directory containing project/proposal spreadsheets")
         sp.add_argument("--load-all", action="store_true", help="Include entries with converttoscript!=1")
