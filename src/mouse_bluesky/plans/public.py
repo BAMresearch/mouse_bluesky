@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Mapping
 
 from bluesky import plan_stubs as bps
 
@@ -22,7 +21,7 @@ def measure_yzstage(
     config_id: int,
     repeat_index: int = 0,
     root_path: str,
-    md: Mapping[str, Any] | None = None,
+    md: dict[str, object] | None = None,
     # devices:
     eiger=None,
     sample_stage=None,
