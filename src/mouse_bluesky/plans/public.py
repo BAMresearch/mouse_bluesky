@@ -21,7 +21,7 @@ def measure_yzstage(
     batchnum: int,
     config_id: int,
     repeat_index: int = 0,
-    root_path: str | Path,
+    root_path: str,
     md: Mapping[str, Any] | None = None,
     # devices:
     eiger=None,
