@@ -2,12 +2,52 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from .planner.logbook2bluesky import QueueServerTarget, build_plan_specs_from_logbook, populate_queue
 from .planner.validate import validate_specs
 from .protocols.builtin import build_default_registry
 from .settings import Settings
+
+
+def _normalize_queue_response(response: Any) -> dict[str, Any]:
+    """Return a normalized view of a Queue Server response."""
+    normalized: dict[str, Any] = {"success": False, "msg": None, "traceback": None, "raw": response}
+
+    if isinstance(response, Mapping):
+        normalized["success"] = bool(response.get("success", False))
+        normalized["msg"] = response.get("msg")
+        normalized["traceback"] = response.get("traceback")
+        return normalized
+
+    if isinstance(response, tuple):
+        for item in response:
+            if isinstance(item, Mapping):
+                normalized["success"] = bool(item.get("success", False))
+                normalized["msg"] = item.get("msg")
+                normalized["traceback"] = item.get("traceback")
+                return normalized
+        if response and isinstance(response[0], bool):
+            normalized["success"] = bool(response[0])
+            if len(response) > 1:
+                normalized["msg"] = str(response[1])
+            if len(response) > 2:
+                normalized["traceback"] = str(response[2])
+            return normalized
+
+    success_attr = getattr(response, "success", None)
+    if success_attr is not None:
+        normalized["success"] = bool(success_attr)
+        normalized["msg"] = getattr(response, "msg", None)
+        normalized["traceback"] = getattr(response, "traceback", None)
+        return normalized
+
+    if isinstance(response, str):
+        normalized["msg"] = response
+
+    return normalized
 
 
 def _cmd_build_specs(args: argparse.Namespace) -> int:
@@ -89,12 +129,16 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
     responses = populate_queue(specs, target=target, position=args.position)
 
     # inspect responses for errors
-    failed = [r for r in responses if not r.get("success", False)]
+    normalized = [_normalize_queue_response(r) for r in responses]
+    failed = [r for r in normalized if not r["success"]]
     if failed:
         print(f"Queue add failed for {len(failed)} item(s):")
         for i, r in enumerate(failed, start=1):
-            print(f"[{i}] msg={r.get('msg')}")
-            if "traceback" in r:
+            if r["msg"]:
+                print(f"[{i}] msg={r['msg']}")
+            else:
+                print(f"[{i}] response={r['raw']!r}")
+            if r["traceback"]:
                 print(r["traceback"])
         return 1
 
