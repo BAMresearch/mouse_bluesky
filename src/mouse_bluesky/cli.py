@@ -87,6 +87,17 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
 
     target = QueueServerTarget(zmq_control_addr=args.zmq)
     responses = populate_queue(specs, target=target, position=args.position)
+
+    # inspect responses for errors
+    failed = [r for r in responses if not r.get("success", False)]
+    if failed:
+        print(f"Queue add failed for {len(failed)} item(s):")
+        for i, r in enumerate(failed, start=1):
+            print(f"[{i}] msg={r.get('msg')}")
+            if "traceback" in r:
+                print(r["traceback"])
+        return 1
+    
     if not args.quiet:
         print(f"Enqueued {len(responses)} items to {args.zmq}.")
     return 0
