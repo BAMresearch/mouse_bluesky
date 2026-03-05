@@ -19,6 +19,8 @@ from .scheduler import schedule
 class QueueServerTarget:
     """Connection details for a Queue Server control endpoint."""
     zmq_control_addr: str = "tcp://127.0.0.1:60615"
+    user: str = "mouse-bluesky"
+    user_group: str = "primary"
 
 
 def compile_entries(entries: Iterable[LogbookEntryLike], *, registry: ProtocolRegistry) -> list[CompiledEntry]:
@@ -82,7 +84,12 @@ def populate_queue(specs: Sequence[PlanSpec], *, target: QueueServerTarget, posi
     """Push plan specs into Queue Server using `queue_item_add` in order."""
     responses: list[dict[str, Any]] = []
     for spec in specs:
-        payload = {"item": spec.to_qs_item(), "pos": position}
+        payload = {
+            "item": spec.to_qs_item(),
+            "pos": position,
+            "user": target.user,
+            "user_group": target.user_group,
+        }
         responses.append(_queue_item_add_request(payload=payload, zmq_control_addr=target.zmq_control_addr))
     return responses
 

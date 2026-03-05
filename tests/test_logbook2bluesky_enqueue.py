@@ -63,7 +63,7 @@ def test_build_and_populate_queue_calls_qs_api(monkeypatch: pytest.MonkeyPatch) 
 
     monkeypatch.setattr("mouse_bluesky.planner.logbook2bluesky.zmq_single_request", fake_zmq_single_request)
 
-    target = QueueServerTarget(zmq_control_addr="tcp://127.0.0.1:60615")
+    target = QueueServerTarget(zmq_control_addr="tcp://127.0.0.1:60615", user="tester", user_group="primary")
     responses = populate_queue(specs, target=target)
 
     assert len(responses) == len(specs)
@@ -74,6 +74,8 @@ def test_build_and_populate_queue_calls_qs_api(monkeypatch: pytest.MonkeyPatch) 
         assert method == "queue_item_add"
         assert addr == "tcp://127.0.0.1:60615"
         assert "item" in params
+        assert params["user"] == "tester"
+        assert params["user_group"] == "primary"
         assert params["item"]["item_type"] == "plan"
         assert params["item"]["name"] == spec.name
         assert isinstance(params["item"]["kwargs"], dict)

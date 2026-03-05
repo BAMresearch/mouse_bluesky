@@ -85,6 +85,6 @@ mouse-bluesky validate /path/to/logbook.xlsx /path/to/projects --root-path /data
 
 ```bash
 mouse-bluesky enqueue /path/to/logbook.xlsx /path/to/projects --zmq tcp://127.0.0.1:60615 \
-  --root-path /data/mouse --config-root /data/mouse_configs
+  --root-path /data/mouse --config-root /data/mouse_configs \
+  --user mouse-bluesky --user-group primary
 ```
-

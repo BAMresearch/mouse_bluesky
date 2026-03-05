@@ -11,7 +11,7 @@ from tiled.client import from_uri
 # export TILED_API_KEY="<your-key>"
 
 # RE is expected to exist (defined in 01_re.py)
-RE  # noqa: F821
+# RE  # noqa: F821
 
 uri = os.environ.get("TILED_URI")
 if not uri:

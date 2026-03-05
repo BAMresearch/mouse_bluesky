@@ -125,7 +125,11 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
         print("Refusing to enqueue due to validation issues.")
         return 1
 
-    target = QueueServerTarget(zmq_control_addr=args.zmq)
+    target = QueueServerTarget(
+        zmq_control_addr=args.zmq,
+        user=args.user,
+        user_group=args.user_group,
+    )
     responses = populate_queue(specs, target=target, position=args.position)
 
     # inspect responses for errors
@@ -173,6 +177,8 @@ def main(argv: list[str] | None = None) -> None:
     add_common(p_enq)
     p_enq.add_argument("--zmq", default="tcp://127.0.0.1:60615", help="Queue Server ZMQ control address")
     p_enq.add_argument("--position", default="back", choices=["front", "back"], help="Queue insertion position")
+    p_enq.add_argument("--user", default="mouse-bluesky", help="Queue Server request user")
+    p_enq.add_argument("--user-group", default="primary", help="Queue Server request user group")
     p_enq.set_defaults(func=_cmd_enqueue)
 
     ns = p.parse_args(argv)
