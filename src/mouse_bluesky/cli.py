@@ -97,7 +97,7 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
             if "traceback" in r:
                 print(r["traceback"])
         return 1
-    
+
     if not args.quiet:
         print(f"Enqueued {len(responses)} items to {args.zmq}.")
     return 0

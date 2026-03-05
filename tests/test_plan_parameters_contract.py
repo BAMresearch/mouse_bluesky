@@ -1,8 +1,10 @@
 # tests/test_plan_parameters_contract.py
-from mouse_bluesky.planner.validate import validate_specs
-from mouse_bluesky.planner.logbook2bluesky import build_plan_specs_from_logbook
-from mouse_bluesky.protocols.builtin import build_default_registry
 from pathlib import Path
+
+from mouse_bluesky.planner.logbook2bluesky import build_plan_specs_from_logbook
+from mouse_bluesky.planner.validate import validate_specs
+from mouse_bluesky.protocols.builtin import build_default_registry
+
 
 def test_compiled_specs_have_required_kwargs():
     specs = build_plan_specs_from_logbook(
