@@ -1,12 +1,11 @@
 # shutter:
 from ophyd import Component as Cpt
-from ophyd import Device
-from ophyd import EpicsSignal, EpicsSignalRO
+from ophyd import Device, EpicsSignal, EpicsSignalRO
 
 
 class XrayGenerator(Device):
 
-    def __init__(self, *args, **kwargs): 
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     shutter = Cpt(EpicsSignal, "shutter", kind='hinted')

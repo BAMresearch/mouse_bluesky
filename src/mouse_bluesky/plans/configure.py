@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-from collections.abc import Mapping
 import inspect
+from collections.abc import Iterator, Mapping
+from pathlib import Path
 from typing import Any
 
-from pathlib import Path
-from bluesky import plan_stubs as bps
 import h5py
+from bluesky import plan_stubs as bps
+
+# NOTE: when adding devices, add them here. For example, adding syringe injector positions and 
+# temperature controller setpoints would be common additions. This keeps track of what devices
+# are expected to be in the config files and allows for dynamic resolution. Adding to baseline
+# can be done as well, to keep track of device state during operation. 
+# TODO: add the pressure gauge readout. 
 
 # create a registry for "movable devices" that defines a machine configuration and needs to be moved
 # maps the field paths in nexus to ophyd devices
@@ -38,7 +43,7 @@ HDF5_OPHYD_MAP_BASE: dict[str, str] = {
     "/saxs/Saxslab/s3right": "s3.right",
 }
 
-# actually not needed to move the sample stages... probably move elsewhere. 
+# actually not needed to move the sample stages... probably move elsewhere.
 HDF5_OPHYD_MAP_YZ: dict[str, str] = {
     # standard sample stage
     "/saxs/Saxslab/ysam": "sample_stage_yz.y",
@@ -51,6 +56,13 @@ HDF5_OPHYD_MAP_GI: dict[str, str] = {
     "/saxs/Saxslab/gsy": "gi_stage.y",
     # ... TODO: complete.
 }
+
+GENERATOR_BASELINE_SIGNALS: tuple[str, ...] = (
+    "cu_generator.voltage",
+    "cu_generator.current",
+    "mo_generator.voltage",
+    "mo_generator.current",
+)
 
 MOVE_IN_GROUPS: tuple[tuple[str, ...], ...] = (
     # independently powered stages
@@ -130,6 +142,45 @@ def _readback_value(signal: Any) -> float:
     raise TypeError(f"Cannot read value from signal object: {signal!r}")
 
 
+def _try_resolve_dotted_name(name: str, *, namespace: Mapping[str, Any] | None = None) -> Any | None:
+    try:
+        return _resolve_dotted_name(name, namespace=namespace)
+    except Exception:
+        return None
+
+
+def build_baseline_signals(*, namespace: Mapping[str, Any] | None = None) -> list[Any]:
+    """Build an ordered baseline signal list for RunEngine SupplementalData.
+
+    Baseline always includes all signals mapped in ``HDF5_OPHYD_MAP_BASE``.
+    Additional YZ and GI stage signals are included when their mapped objects
+    can be resolved in the provided ``namespace`` (or caller/global frames).
+    X-ray generator readbacks (voltage/current) are included when available.
+    """
+    signal_names: list[str] = list(HDF5_OPHYD_MAP_BASE.values())
+
+    for optional_map in (HDF5_OPHYD_MAP_YZ, HDF5_OPHYD_MAP_GI):
+        for signal_name in optional_map.values():
+            if _try_resolve_dotted_name(signal_name, namespace=namespace) is not None:
+                signal_names.append(signal_name)
+
+    for signal_name in GENERATOR_BASELINE_SIGNALS:
+        if _try_resolve_dotted_name(signal_name, namespace=namespace) is not None:
+            signal_names.append(signal_name)
+
+    baseline_signals: list[Any] = []
+    seen_ids: set[int] = set()
+    for signal_name in signal_names:
+        signal = _resolve_dotted_name(signal_name, namespace=namespace)
+        signal_id = id(signal)
+        if signal_id in seen_ids:
+            continue
+        seen_ids.add(signal_id)
+        baseline_signals.append(signal)
+
+    return baseline_signals
+
+
 def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, Any] | None = None) -> Iterator:
     """Apply a machine configuration from ``{config_root}/{config_id}.nxs``.
 
@@ -166,7 +217,7 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, An
     moved_paths: set[str] = set()
     for group in MOVE_IN_GROUPS:
         if not all(path in resolved for path in group):
-            # print an error message: 
+            # print an error message:
             missing = [path for path in group if path not in resolved]
             print(f"Warning: skipping move group {group} due to missing paths: {missing}")
             continue

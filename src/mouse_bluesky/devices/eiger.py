@@ -1,13 +1,10 @@
 from typing import OrderedDict
 
-from ophyd.areadetector import ADComponent
-from ophyd.areadetector import EigerDetector
-from ophyd.areadetector.cam import EigerDetectorCam
-from ophyd.areadetector.plugins import ImagePlugin
-from ophyd.areadetector.plugins import ROIPlugin, ROIStatNPlugin_V25, ROIStatPlugin_V35
-from ophyd.areadetector.plugins import StatsPlugin
-from ophyd.areadetector.trigger_mixins import SingleTrigger
 from ophyd import EpicsSignal
+from ophyd.areadetector import ADComponent, EigerDetector
+from ophyd.areadetector.cam import EigerDetectorCam
+from ophyd.areadetector.plugins import ImagePlugin, ROIPlugin, ROIStatNPlugin_V25, ROIStatPlugin_V35, StatsPlugin
+from ophyd.areadetector.trigger_mixins import SingleTrigger
 
 
 class EigerWithStats(SingleTrigger, EigerDetector):
