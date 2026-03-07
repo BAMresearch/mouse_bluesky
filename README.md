@@ -58,6 +58,42 @@ This package intentionally does **not** include:
 
 Those belong in the beamline startup/profile repository.
 
+## mouse_bluesky interactive scans
+
+This archive contains a small package skeleton for interactive scan helpers with
+Bluesky `LiveFit` callback integration. These methods expose scan methods for 
+peak_scan, valley_scan, edge_scan and capillary_scan, 
+with a several supported peak functions (gaussian, lorentzian and trapezoidal). 
+
+### Contents
+
+- `src/mouse_bluesky/interactive_scans/`
+- `tests/unit/interactive_scans/`
+- `tests/integration/interactive_scans/`
+
+### Defaults
+
+- `num=10`
+- `exposure_time=1.0`
+- default detector resolved from interactive `eiger`
+- default RunEngine resolved from interactive `RE`
+- live table on by default
+- live plot off by default
+
+### Notes
+
+TODO: fix and simplify for eiger... no need to search when we know. 
+`exposure_time` is implemented as detector exposure configuration rather than an
+inter-step sleep. The helper looks for common AreaDetector-style signals such as:
+
+- `det.cam.acquire_time`
+- `det.acquire_time`
+- `det.cam.exposure_time`
+- `det.exposure_time`
+
+and optionally aligns acquire period if present.
+
+
 ## License
 
 Add your preferred license file (e.g., BSD-3-Clause) and update this section.

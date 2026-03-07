@@ -19,6 +19,7 @@ dependencies = [
   "bluesky-queueserver>=0.0.24",   # you are using 0.0.24; align
   "h5py>=3.8",
   "ophyd>=1.7",
+  "lmfit",
   "mouse-logbook @ git+https://github.com/BAMresearch/mouse_logbook.git@main",
 ]
 

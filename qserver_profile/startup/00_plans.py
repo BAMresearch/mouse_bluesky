@@ -13,6 +13,7 @@ from bluesky.plans import (
     scan_nd,
 )
 from bluesky.plan_stubs import mv, sleep
+from mouse_bluesky.interactive_scans import capillary_scan, edge_scan, peak_scan, valley_scan
 from mouse_bluesky.plans.public import measure_yzstage
 
 # The Queue Server discovers plans defined in startup files via inspection.
