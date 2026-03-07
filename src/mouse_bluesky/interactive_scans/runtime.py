@@ -57,7 +57,7 @@ def resolve_detector_field(dets: Sequence[Any], detector_field: str | None) -> s
             "`detector_field` must be provided when more than one detector is supplied. "
             f"Received detectors={names!r}."
         )
-    return str(getattr(dets[0], "name"))
+    return str(dets[0].name)
 
 
 def coerce_uid(uid: Any) -> Any:

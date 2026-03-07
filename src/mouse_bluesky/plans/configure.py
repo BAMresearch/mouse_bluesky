@@ -8,11 +8,11 @@ from typing import Any
 import h5py
 from bluesky import plan_stubs as bps
 
-# NOTE: when adding devices, add them here. For example, adding syringe injector positions and 
+# NOTE: when adding devices, add them here. For example, adding syringe injector positions and
 # temperature controller setpoints would be common additions. This keeps track of what devices
 # are expected to be in the config files and allows for dynamic resolution. Adding to baseline
-# can be done as well, to keep track of device state during operation. 
-# TODO: add the pressure gauge readout. 
+# can be done as well, to keep track of device state during operation.
+# TODO: add the pressure gauge readout.
 
 # create a registry for "movable devices" that defines a machine configuration and needs to be moved
 # maps the field paths in nexus to ophyd devices
