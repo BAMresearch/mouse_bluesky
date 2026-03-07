@@ -1,4 +1,4 @@
-# shutter: 
+# shutter:
 from ophyd import Component as Cpt
 from ophyd import Device
 from ophyd import EpicsSignal, EpicsSignalRO
