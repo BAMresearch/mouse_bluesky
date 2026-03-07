@@ -7,9 +7,16 @@ This repository implements:
 - **Bluesky plans** for MOUSE measurements (atomic measurement + higher-level wrappers).
 - A **logbook-driven planner** that compiles logbook entries into **Queue Server** plan items and pushes them via the Queue Server API.
 - **Static pre-validation** of the planned queue (plan names, config files, minimal HDF5 structure sanity checks).
+- **Interactive scan helpers** (`peak_scan`, `valley_scan`, `edge_scan`, `capillary_scan`) with live fitting.
+- A **reference Queue Server startup profile** under `qserver_profile/startup/`.
 
-This repository **does not** own or bundle beamline startup:
-- RunEngine creation, `SupplementalData` baseline configuration, device instantiation, Queue Server startup, and TiledWriter wiring are expected to live in the beamline startup/profile repo.
+Production beamline deployment may still keep startup in a dedicated operations
+repository, but this repo now includes a working reference startup profile:
+- `01_re.py` (RunEngine),
+- `02_tiledwriter.py` (optional TiledWriter),
+- `03_init_devices.py` (devices),
+- `04_baseline.py` (SupplementalData baseline wiring),
+- `00_plans.py` (plan exports for Queue Server discovery).
 
 ## High-level flow
 
@@ -62,13 +69,30 @@ flowchart LR
 - `mouse_bluesky.plans.public`
   - `measure_yzstage`: opens run, records metadata, takes a **snapshot** stream immediately before acquisition, then calls atomic plan.
 - `mouse_bluesky.plans.configure`
-  - `apply_config`: framework stub to load `{config_id}.nxs` and set PV/motor targets carefully.
+  - `apply_config`: loads `{config_id}.nxs` and applies grouped/ordered motor moves.
+  - `save_config`: writes current mapped machine state to `{config_id}.nxs`.
+  - `build_baseline_signals`: resolves baseline signals from config maps and generator readbacks.
 - `mouse_bluesky.plans.snapshot`
   - `snapshot_state`: reads debugging signals into a dedicated stream (e.g. `snapshot`).
 
+### Interactive scans
+
+- `mouse_bluesky.interactive_scans.scans`
+  - user-facing helpers: `peak_scan`, `valley_scan`, `edge_scan`, `capillary_scan`
+  - minimal API supports `scan_fn(motor, start, stop)`
+  - extended API supports `scan_fn(motor, start, stop, num, exposure_time)`
+- `mouse_bluesky.interactive_scans.fit_models`
+  - lmfit model builders and initial guess helpers
+- `mouse_bluesky.interactive_scans.exposure`
+  - deterministic Eiger-style exposure path handling (`cam.acquire_time`, `cam.acquire_period`)
+
 ## Streams & metadata strategy
 
-- **Baseline stream** (recommended): configured once on the RunEngine via `SupplementalData(baseline=[...])`.
+- **Baseline stream**: configured in startup (`04_baseline.py`) via `SupplementalData`.
+  Baseline signals are built by `build_baseline_signals(...)`, including:
+  - mapped base motors,
+  - optional YZ and GI stage signals if available,
+  - generator voltage/current readbacks.
 - **Snapshot stream**: emitted inside each measurement run, immediately before detector acquisition, for “debugging before every measurement”.
 - **RunStart metadata**:
   - should include `entry_row_index`, `config_id`, `repeat_index`, and a filtered `logbook_entry` dictionary (JSON-friendly).
@@ -79,4 +103,5 @@ flowchart LR
 - Settings stored as scalar datasets under:
   - `/saxs/Saxslab/<pv_or_motor_name> = <scalar_value>`
 
-The configuration loader reads those scalars to a dict and applies them via `bps.mv` (sequenced to avoid power-supply overload).
+The configuration loader reads those scalars and applies them via grouped `bps.mv`
+sequences to avoid unsafe simultaneous moves.

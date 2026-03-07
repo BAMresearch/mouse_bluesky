@@ -6,8 +6,10 @@ from typing import Any
 
 import bluesky.plan_stubs as bps
 
+# TODO: update if needed:
 EIGER_EXPOSURE_SIGNAL_PATH = "cam.acquire_time"
 EIGER_PERIOD_SIGNAL_PATH = "cam.acquire_period"
+
 
 def _resolve_signal(device: Any, dotted_name: str) -> Any:
     """Resolve a dotted attribute path on a device."""

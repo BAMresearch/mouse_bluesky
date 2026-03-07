@@ -42,11 +42,38 @@ Rule:
 - group path: `/saxs/Saxslab`
 - leaf datasets: scalar, named after PV/motor identifiers
 - each dataset value becomes the target setpoint
+- optional stage datasets:
+  - YZ stage fields (if present, all required YZ fields must be present),
+  - GI stage fields (if present, all required GI fields must be present).
+
+## Baseline signal contract
+
+`build_baseline_signals(namespace=...)` returns an ordered list of readable
+signals for `SupplementalData.baseline`:
+
+- always includes BASE mapped signals,
+- conditionally includes YZ and GI stage signals if resolvable,
+- conditionally includes generator readbacks (`cu/mo` voltage and current) if resolvable.
+
+Duplicate signal objects are removed while preserving order.
 
 ## Snapshot vs baseline
 
 - Baseline: configured once at RE level; produces the `baseline` stream.
 - Snapshot: emitted per measurement run right before acquisition (stream `snapshot`).
+
+## Interactive scan call contract
+
+User-facing scan helpers support positional short forms:
+
+- `peak_scan(motor, start, stop[, num, exposure_time])`
+- `valley_scan(motor, start, stop[, num, exposure_time])`
+- `edge_scan(motor, start, stop[, num, exposure_time])`
+- `capillary_scan(motor, start, stop[, num, exposure_time])`
+
+Shared runtime defaults:
+- RunEngine defaults to interactive `RE` if omitted.
+- Detector defaults to interactive `eiger` if omitted.
 
 ## Additional parameters parsing
 

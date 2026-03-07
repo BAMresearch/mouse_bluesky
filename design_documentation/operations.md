@@ -4,15 +4,19 @@ This document describes intended usage during development and beamtime.
 
 ## Roles & components
 
-- **Beamline startup profile** (separate repo):
-  - instantiates devices (Eiger, motors, shutters, PV signals),
-  - configures `RunEngine`,
-  - configures baseline via `SupplementalData`,
-  - subscribes `TiledWriter`,
-  - runs `bluesky-queueserver` (manager + worker).
+- **Queue Server startup profile**:
+  - this repo includes a reference profile in `qserver_profile/startup`,
+  - production deployments may mirror/adapt this in an operations repo.
+  - startup responsibilities:
+    - instantiate devices (Eiger, motors, generators),
+    - configure `RunEngine`,
+    - configure baseline via `SupplementalData`,
+    - optionally subscribe `TiledWriter`,
+    - export plans for Queue Server discovery.
 
 - **mouse-bluesky** (this repo):
-  - provides plans: `measure_yzstage`, `apply_config`, `snapshot_state`, atomic plans,
+  - provides plans: `measure_yzstage`, `apply_config`, `save_config`, `snapshot_state`, atomic plans,
+  - provides interactive scans: `peak_scan`, `valley_scan`, `edge_scan`, `capillary_scan`,
   - provides protocol compilers and planner that fills the Queue Server.
 
 ## Typical workflow
@@ -57,13 +61,28 @@ Start the queue from the Queue Server UI/CLI.
 
 ### Baseline stream
 
-Baseline devices are configured at RunEngine level via `SupplementalData(baseline=[...])`.
-This automatically emits a `baseline` stream at run boundaries.
+Baseline devices are configured at RunEngine level via `SupplementalData`.
+In the reference startup profile this is wired in `04_baseline.py` using
+`build_baseline_signals(namespace=globals())`, and emits `baseline` at run boundaries.
+Included baseline signals cover:
+- mapped BASE motors,
+- optional YZ and GI stage motors when present,
+- generator voltage/current readbacks.
 
 ### Snapshot stream
 
 `measure_yzstage` emits a `snapshot` stream inside the run immediately before measurement.
 This is used for debugging and state auditing.
+
+### Interactive console usage
+
+When running with `qserver-console` or `qserver-qtconsole`, startup exports:
+- standard Bluesky plans (`count`, `scan`, `rel_scan`, `list_scan`, `grid_scan`, etc.),
+- interactive fitting scans (`peak_scan`, `valley_scan`, `edge_scan`, `capillary_scan`).
+
+Interactive scans support:
+- minimal form: `scan_fn(motor, start, stop)`,
+- extended form: `scan_fn(motor, start, stop, num, exposure_time)`.
 
 ### Tiled storage
 

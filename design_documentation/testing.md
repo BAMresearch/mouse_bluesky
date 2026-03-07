@@ -1,5 +1,10 @@
 # Testing strategy
 
+Tests are organized into:
+
+- `tests/unit/` for deterministic, isolated tests.
+- `tests/integration/` for cross-module behavior with simulated devices/runtime.
+
 ## Unit tests (pytest)
 
 Focus on deterministic, hardware-free tests:
@@ -23,7 +28,20 @@ Focus on deterministic, hardware-free tests:
   - missing HDF5 group
   - non-scalar datasets flagged
 
-## Integration tests (optional, outside CI)
+- Interactive scan helpers:
+  - fit-model guess construction
+  - runtime default resolution (`RE`, default detector, detector field)
+  - deterministic exposure configuration for Eiger-style detector paths
+  - baseline signal builder composition for optional devices
 
-- connect to a test Queue Server instance and add a small queue
-- run with simulated devices (Ophyd sim) where possible
+## Integration tests
+
+- Interactive scans with simulated detector/motor bundles:
+  - `peak_scan`, `valley_scan`, `edge_scan`, `capillary_scan`
+  - verify fit centers and behavior under realistic synthetic profiles
+
+## Recommended commands
+
+```bash
+pytest tests/unit tests/integration
+```

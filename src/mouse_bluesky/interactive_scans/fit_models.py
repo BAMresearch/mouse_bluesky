@@ -30,6 +30,7 @@ def guess_sigma(start: float, stop: float) -> float:
     span = abs(float(stop) - float(start))
     return max(span / 10.0, np.finfo(float).eps)
 
+
 def peak_or_valley_model(profile: PeakProfile | ValleyProfile):
     """Build a peak-like model with constant background."""
     background = ConstantModel(prefix="bkg_")

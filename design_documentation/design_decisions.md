@@ -63,10 +63,31 @@ Example: `FORBID, ALLOW×5, FORBID, ALLOW×4`
 
 ## 8) RE / Queue Server / Tiled setup kept separate
 
-**Decision:** The core library does not embed beamline startup. It provides:
+**Decision:** The core library remains reusable and deployment-agnostic, while
+this repo also ships a reference Queue Server startup profile. It provides:
 - plans,
 - planner,
 - validators,
-- protocol registry.
+- protocol registry,
+- reference startup scripts in `qserver_profile/startup`.
 
 **Rationale:** separation of concerns; avoids coupling to a specific deployment environment.
+
+## 9) Interactive scan API favors short positional calls
+
+**Decision:** User-facing interactive scans support concise usage:
+- `scan_fn(motor, start, stop)`
+- `scan_fn(motor, start, stop, num, exposure_time)`
+
+with sensible defaults for detector and RunEngine resolution.
+
+**Rationale:** this aligns with beamline console workflows and minimizes typing
+for routine alignment scans.
+
+## 10) Deterministic Eiger exposure path (no runtime signal guessing)
+
+**Decision:** Exposure setting for interactive scans uses explicit Eiger-style
+paths (`cam.acquire_time`, `cam.acquire_period`) instead of heuristic discovery.
+
+**Rationale:** predictable behavior and simpler maintenance in a known detector
+environment; IOC naming can be adjusted in one location when needed.

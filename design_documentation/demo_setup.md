@@ -44,13 +44,19 @@ for plan in materialize_plans(specs, plan_funcs):
 
 Notes:
 - In production you will provide the device objects (Eiger, motors, shutters) via the Queue Server worker startup.
-- Baseline should be configured once on the RunEngine using `SupplementalData(baseline=[...])`.
+- Baseline can be configured using `build_baseline_signals(...)` from `plans.configure`.
 
 ## 2) Queue Server demo
 
 Purpose: validate end-to-end queue population.
 
 1. Start Queue Server manager/worker using your beamline startup profile (recommended).
+   The reference profile in this repo is under `qserver_profile/startup/`:
+   - `00_plans.py`: exports public plans, standard Bluesky plans, and interactive scans.
+   - `01_re.py`: RunEngine.
+   - `02_tiledwriter.py`: optional TiledWriter subscription.
+   - `03_init_devices.py`: devices (including generators).
+   - `04_baseline.py`: SupplementalData baseline setup.
 2. Validate the queue from the command line:
 
 ```bash
@@ -69,3 +75,6 @@ mouse-bluesky enqueue /path/to/logbook.xlsx /path/to/projects --zmq tcp://127.0.
 Notes:
 - This repo uses the Queue Server ZMQ control API (`queue_item_add`) to populate the queue.
 - The worker environment must register the plan names referenced by the planner (`measure_yzstage`, `apply_config`, plus any custom single-plan protocols).
+- Interactive console sessions (`qserver-console`, `qserver-qtconsole`) can also run:
+  - standard plans (`count`, `scan`, `rel_scan`, `list_scan`, `grid_scan`, ...),
+  - interactive scans (`peak_scan`, `valley_scan`, `edge_scan`, `capillary_scan`).

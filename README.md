@@ -60,10 +60,32 @@ Those belong in the beamline startup/profile repository.
 
 ## mouse_bluesky interactive scans
 
-This archive contains a small package skeleton for interactive scan helpers with
-Bluesky `LiveFit` callback integration. These methods expose scan methods for 
-peak_scan, valley_scan, edge_scan and capillary_scan, 
-with a several supported peak functions (gaussian, lorentzian and trapezoidal). 
+Interactive helpers are available in `mouse_bluesky.interactive_scans` and are
+designed for `qserver-console` / `qserver-qtconsole` workflows with live fits.
+
+Available scans:
+
+- `peak_scan`
+- `valley_scan`
+- `edge_scan`
+- `capillary_scan`
+
+All scans support a minimal call and a short extended call:
+
+- Minimal: `scan_fn(motor, start, stop)`
+- Extended: `scan_fn(motor, start, stop, num, exposure_time)`
+
+Examples:
+
+```python
+from mouse_bluesky.interactive_scans import peak_scan, edge_scan
+
+# Minimal usage
+res_peak = peak_scan(motor, -1.0, 1.0)
+
+# Extended usage
+res_edge = edge_scan(motor, -0.5, 0.5, 41, 0.2)
+```
 
 ### Contents
 
@@ -79,19 +101,40 @@ with a several supported peak functions (gaussian, lorentzian and trapezoidal).
 - default RunEngine resolved from interactive `RE`
 - live table on by default
 - live plot off by default
+- `peak_scan`/`valley_scan` default model profile: `gaussian`
+- `edge_scan` default model: sigmoidal (`StepModel`)
 
-### Notes
+### Runtime behavior
 
-TODO: fix and simplify for eiger... no need to search when we know. 
-`exposure_time` is implemented as detector exposure configuration rather than an
-inter-step sleep. The helper looks for common AreaDetector-style signals such as:
+- Scans run as standard Bluesky `scan(...)` plans with callbacks (`LiveFit`,
+  optional `LiveTable`, optional `LivePlot`).
+- `exposure_time` sets detector timing before the scan; it is not an inter-step sleep.
+- Current exposure configuration is deterministic for Eiger-like detectors via:
+  - `det.cam.acquire_time`
+  - `det.cam.acquire_period`
+  - Code marker: `TODO: check` in `interactive_scans/exposure.py` for final IOC verification.
 
-- `det.cam.acquire_time`
-- `det.acquire_time`
-- `det.cam.exposure_time`
-- `det.exposure_time`
+### Returned result
 
-and optionally aligns acquire period if present.
+Each helper returns `ScanResult` with consistent fields:
+
+- `uid`, `kind`, `detector_field`, `motor_field`
+- fit status: `fit_success`, `fit_message`
+- fit outputs: `fit_center`, `width`
+- convenience stats where applicable: `com`, `cen`
+- raw callback artifacts: `fit_result`, `peak_stats`, `livefit`
+- extra metadata in `extra`
+
+For capillary scans, center is the fitted `mid_center` and width is
+`abs(left_center - right_center)`.
+
+### Queue Server startup exposure
+
+Interactive scans are imported in Queue Server startup:
+
+- `qserver_profile/startup/00_plans.py`
+
+This makes them available in both queue operations and interactive console sessions.
 
 
 ## License

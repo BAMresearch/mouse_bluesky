@@ -105,12 +105,12 @@ def peak_scan(
     motor: Any,
     start: float,
     stop: float,
+    num: int = DEFAULT_NUM,
+    exposure_time: float = DEFAULT_EXPOSURE_TIME,
     *,
     RE: Any | None = None,
     dets: Sequence[Any] | Any | None = None,
     detector_field: str | None = None,
-    num: int = DEFAULT_NUM,
-    exposure_time: float = DEFAULT_EXPOSURE_TIME,
     profile: PeakProfile = DEFAULT_PROFILE,
     plot: bool = DEFAULT_PLOT,
     table: bool = DEFAULT_TABLE,
@@ -136,11 +136,18 @@ def peak_scan(
     exposure_time
         Detector frame capture time in seconds.
     profile
-        Peak model: `gaussian`, `lorentzian`, or `trapezoid`.
+        Peak model: `gaussian` (default), `lorentzian`, or `trapezoid`.
     plot
         Whether to attach a standard Bluesky live plot.
     table
         Whether to attach a live table.
+
+    Examples
+    --------
+    Minimal:
+        ``peak_scan(motor, -1.0, 1.0)``
+    Extended:
+        ``peak_scan(motor, -1.0, 1.0, 41, 0.2)``
     """
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
@@ -202,19 +209,30 @@ def valley_scan(
     motor: Any,
     start: float,
     stop: float,
+    num: int = DEFAULT_NUM,
+    exposure_time: float = DEFAULT_EXPOSURE_TIME,
     *,
     RE: Any | None = None,
     dets: Sequence[Any] | Any | None = None,
     detector_field: str | None = None,
-    num: int = DEFAULT_NUM,
-    exposure_time: float = DEFAULT_EXPOSURE_TIME,
     profile: ValleyProfile = DEFAULT_PROFILE,
     plot: bool = DEFAULT_PLOT,
     table: bool = DEFAULT_TABLE,
     update_every: int | None = DEFAULT_UPDATE_EVERY,
     md: Mapping[str, Any] | None = None,
 ) -> ScanResult:
-    """Scan across a valley and return fit center, CEN, COM, and width."""
+    """Scan across a valley and return fit center, CEN, COM, and width.
+
+    Defaults to a Gaussian valley model. Override with ``profile=...`` when
+    needed.
+
+    Examples
+    --------
+    Minimal:
+        ``valley_scan(motor, -1.0, 1.0)``
+    Extended:
+        ``valley_scan(motor, -1.0, 1.0, 41, 0.2)``
+    """
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)
@@ -275,12 +293,12 @@ def edge_scan(
     motor: Any,
     start: float,
     stop: float,
+    num: int = DEFAULT_NUM,
+    exposure_time: float = DEFAULT_EXPOSURE_TIME,
     *,
     RE: Any | None = None,
     dets: Sequence[Any] | Any | None = None,
     detector_field: str | None = None,
-    num: int = DEFAULT_NUM,
-    exposure_time: float = DEFAULT_EXPOSURE_TIME,
     direction: EdgeDirection = DEFAULT_EDGE_DIRECTION,
     form: EdgeForm = DEFAULT_EDGE_FORM,
     plot: bool = DEFAULT_PLOT,
@@ -288,7 +306,17 @@ def edge_scan(
     update_every: int | None = DEFAULT_UPDATE_EVERY,
     md: Mapping[str, Any] | None = None,
 ) -> ScanResult:
-    """Scan across an edge and return center and characteristic width."""
+    """Scan across an edge and return center and characteristic width.
+
+    Uses a sigmoidal edge model (``StepModel``) by default.
+
+    Examples
+    --------
+    Minimal:
+        ``edge_scan(motor, -1.0, 1.0)``
+    Extended:
+        ``edge_scan(motor, -1.0, 1.0, 41, 0.2)``
+    """
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)
@@ -345,18 +373,26 @@ def capillary_scan(
     motor: Any,
     start: float,
     stop: float,
+    num: int = DEFAULT_NUM,
+    exposure_time: float = DEFAULT_EXPOSURE_TIME,
     *,
     RE: Any | None = None,
     dets: Sequence[Any] | Any | None = None,
     detector_field: str | None = None,
-    num: int = DEFAULT_NUM,
-    exposure_time: float = DEFAULT_EXPOSURE_TIME,
     plot: bool = DEFAULT_PLOT,
     table: bool = DEFAULT_TABLE,
     update_every: int | None = DEFAULT_UPDATE_EVERY,
     md: Mapping[str, Any] | None = None,
 ) -> ScanResult:
-    """Scan across a capillary profile and return fitted mid-center and width."""
+    """Scan across a capillary profile and return fitted mid-center and width.
+
+    Examples
+    --------
+    Minimal:
+        ``capillary_scan(motor, -1.0, 1.0)``
+    Extended:
+        ``capillary_scan(motor, -1.0, 1.0, 61, 0.2)``
+    """
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)
