@@ -5,7 +5,7 @@ from typing import Iterator
 
 from bluesky import plan_stubs as bps
 
-from ..devices.mouse_motors import BeamStop, SampleStage
+from ..devices.mouse_motors import BeamStop, SampleStageYZ
 
 
 def mouse_eiger_measure(eiger, destination: Path, *, num_images: int) -> Iterator:
@@ -24,7 +24,7 @@ def mouse_eiger_measure(eiger, destination: Path, *, num_images: int) -> Iterato
 def measure_yzstage_atomic(
     *,
     eiger,
-    sample_stage: SampleStage,
+    sample_stage_yz: SampleStageYZ,
     beam_stop: BeamStop,
     shutter,
     sampleposition: dict[str, float],
@@ -36,13 +36,13 @@ def measure_yzstage_atomic(
     yield from bps.mv(shutter, 1)
     yield from bps.mv(beam_stop.bsr, beam_stop.out_position)
 
-    yield from bps.mv(sample_stage.y, sampleposition.get("ysam.blank", sample_stage.y.position))
-    yield from bps.mv(sample_stage.z, sampleposition.get("zsam.blank", sample_stage.z.position))
+    yield from bps.mv(sample_stage_yz.y, sampleposition.get("ysam.blank", sample_stage_yz.y.position))
+    yield from bps.mv(sample_stage_yz.z, sampleposition.get("zsam.blank", sample_stage_yz.z.position))
 
     yield from mouse_eiger_measure(eiger, destination / "beam_profile", num_images=2)
 
-    yield from bps.mv(sample_stage.y, sampleposition.get("ysam", sample_stage.y.position))
-    yield from bps.mv(sample_stage.z, sampleposition.get("zsam", sample_stage.z.position))
+    yield from bps.mv(sample_stage_yz.y, sampleposition.get("ysam", sample_stage_yz.y.position))
+    yield from bps.mv(sample_stage_yz.z, sampleposition.get("zsam", sample_stage_yz.z.position))
 
     yield from mouse_eiger_measure(eiger, destination / "beam_profile_through_sample", num_images=2)
 

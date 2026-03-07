@@ -233,7 +233,7 @@ existing_plans:
       kind:
         name: KEYWORD_ONLY
         value: 3
-      name: sample_stage
+      name: sample_stage_yz
     - default: None
       kind:
         name: KEYWORD_ONLY

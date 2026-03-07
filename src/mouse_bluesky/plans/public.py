@@ -24,7 +24,7 @@ def measure_yzstage(
     md: dict[str, object] | None = None,
     # devices:
     eiger=None,
-    sample_stage=None,
+    sample_stage_yz=None,
     beam_stop=None,
     shutter=None,
     snapshot_signals=(),
@@ -62,7 +62,7 @@ def measure_yzstage(
 
         yield from measure_yzstage_atomic(
             eiger=eiger,
-            sample_stage=sample_stage,
+            sample_stage_yz=sample_stage_yz,
             beam_stop=beam_stop,
             shutter=shutter,
             sampleposition=sampleposition,
