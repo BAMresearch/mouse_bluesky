@@ -77,13 +77,13 @@ flowchart LR
 
 ### Interactive scans
 
-- `mouse_bluesky.interactive_scans.scans`
+- `mouse_bluesky.interactive.scans`
   - user-facing helpers: `peak_scan`, `valley_scan`, `edge_scan`, `capillary_scan`
   - minimal API supports `scan_fn(motor, start, stop)`
   - extended API supports `scan_fn(motor, start, stop, num, exposure_time)`
-- `mouse_bluesky.interactive_scans.fit_models`
+- `mouse_bluesky.interactive.fit_models`
   - lmfit model builders and initial guess helpers
-- `mouse_bluesky.interactive_scans.exposure`
+- `mouse_bluesky.interactive.exposure`
   - deterministic Eiger-style exposure path handling (`cam.acquire_time`, `cam.acquire_period`)
 
 ## Streams & metadata strategy

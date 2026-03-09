@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mouse_bluesky.interactive_scans.fit_models import (
+from mouse_bluesky.interactive.fit_models import (
     capillary_init_guess,
     edge_init_guess,
     guess_sigma,

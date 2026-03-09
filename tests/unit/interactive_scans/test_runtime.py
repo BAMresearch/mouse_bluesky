@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import pytest
-
-from mouse_bluesky.interactive_scans.runtime import coerce_uid, resolve_detector_field
+from mouse_bluesky.interactive.runtime import coerce_uid, resolve_detector_field
 
 
 class DummyDetector:

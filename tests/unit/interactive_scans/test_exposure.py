@@ -3,9 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from bluesky import RunEngine
+from mouse_bluesky.interactive.exposure import configure_detector_exposure
 from ophyd import Signal
-
-from mouse_bluesky.interactive_scans.exposure import configure_detector_exposure
 
 
 def test_configure_detector_exposure_updates_expected_signals() -> None:

@@ -11,8 +11,7 @@ from bluesky.plans import (
     scan,
     scan_nd,
 )
-
-from mouse_bluesky.interactive_scans import capillary_scan, edge_scan, peak_scan, valley_scan
+from mouse_bluesky.interactive import capillary_scan, edge_scan, peak_scan, valley_scan
 
 # Import your plans so they are discovered by qserver.
 from mouse_bluesky.plans.configure import apply_config

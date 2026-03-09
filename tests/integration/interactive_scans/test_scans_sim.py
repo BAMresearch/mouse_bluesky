@@ -5,10 +5,9 @@ from types import SimpleNamespace
 
 import numpy as np
 from bluesky import RunEngine
+from mouse_bluesky.interactive.scans import capillary_scan, edge_scan, peak_scan, valley_scan
 from ophyd import Signal
 from ophyd.sim import SynAxis, SynSignal
-
-from mouse_bluesky.interactive_scans.scans import capillary_scan, edge_scan, peak_scan, valley_scan
 
 
 @dataclass

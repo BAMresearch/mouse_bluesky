@@ -60,7 +60,7 @@ Those belong in the beamline startup/profile repository.
 
 ## mouse_bluesky interactive scans
 
-Interactive helpers are available in `mouse_bluesky.interactive_scans` and are
+Interactive helpers are available in `mouse_bluesky.interactive` and are
 designed for `qserver-console` / `qserver-qtconsole` workflows with live fits.
 
 Available scans:
@@ -78,7 +78,7 @@ All scans support a minimal call and a short extended call:
 Examples:
 
 ```python
-from mouse_bluesky.interactive_scans import peak_scan, edge_scan
+from mouse_bluesky.interactive import peak_scan, edge_scan
 
 # Minimal usage
 res_peak = peak_scan(motor, -1.0, 1.0)
@@ -89,9 +89,9 @@ res_edge = edge_scan(motor, -0.5, 0.5, 41, 0.2)
 
 ### Contents
 
-- `src/mouse_bluesky/interactive_scans/`
-- `tests/unit/interactive_scans/`
-- `tests/integration/interactive_scans/`
+- `src/mouse_bluesky/interactive/`
+- `tests/unit/interactive/`
+- `tests/integration/interactive/`
 
 ### Defaults
 
@@ -112,7 +112,7 @@ res_edge = edge_scan(motor, -0.5, 0.5, 41, 0.2)
 - Current exposure configuration is deterministic for Eiger-like detectors via:
   - `det.cam.acquire_time`
   - `det.cam.acquire_period`
-  - Code marker: `TODO: check` in `interactive_scans/exposure.py` for final IOC verification.
+  - Code marker: `TODO: check` in `interactive/exposure.py` for final IOC verification.
 
 ### Returned result
 
