@@ -37,9 +37,7 @@ def resolve_default_detector(dets: Sequence[Any] | Any | None) -> list[Any]:
         user_ns = get_ipython_user_ns()
         eiger = user_ns.get("eiger")
         if eiger is None:
-            raise ValueError(
-                "No detectors were provided and no `eiger` device was found in the interactive namespace."
-            )
+            raise ValueError("No detectors were provided and no `eiger` device was found in the interactive namespace.")
         return [eiger]
 
     if isinstance(dets, Sequence) and not isinstance(dets, (str, bytes)):
@@ -54,8 +52,7 @@ def resolve_detector_field(dets: Sequence[Any], detector_field: str | None) -> s
     if len(dets) != 1:
         names = [getattr(det, "name", repr(det)) for det in dets]
         raise ValueError(
-            "`detector_field` must be provided when more than one detector is supplied. "
-            f"Received detectors={names!r}."
+            f"`detector_field` must be provided when more than one detector is supplied. Received detectors={names!r}."
         )
     return str(dets[0].name)
 
