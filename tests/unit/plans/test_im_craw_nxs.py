@@ -47,6 +47,11 @@ def _namespace_with_devices() -> dict[str, object]:
             voltage=Signal(name="voltage", value=45.0),
             current=Signal(name="current", value=24.5),
         ),
+        "pressure_gauge": SimpleNamespace(pressure=Signal(name="pressure", value=1.2)),
+        "arduino": SimpleNamespace(
+            temperature_env=Signal(name="temperature_env", value=22.3),
+            temperature_stage=Signal(name="temperature_stage", value=26.7),
+        ),
     }
 
 
@@ -87,6 +92,9 @@ def test_write_im_craw_nxs_writes_metadata_and_state(tmp_path: Path) -> None:
         assert _scalar(f["/entry1/instrument/configuration"][()]) == 161
         assert _scalar(f["/entry1/instrument/source/name"][()]) == "cu_generator"
         assert float(_scalar(f["/entry1/instrument/source/voltage"][()])) == 45.0
+        assert float(_scalar(f["/saxs/Saxslab/chamber_pressure"][()])) == 1.2
+        assert float(_scalar(f["/entry1/experiment/environment_temperature"][()])) == 22.3
+        assert float(_scalar(f["/entry1/experiment/stage_temperature"][()])) == 26.7
         assert float(_scalar(f["/saxs/Saxslab/detx"][()])) == float(ns["det_stage"].x.position)
         assert float(_scalar(f["/saxs/Saxslab/ysam"][()])) == float(ns["sample_stage_yz"].y.position)
         logbook_json = _scalar(f["/entry1/experiment/logbook_json"][()])

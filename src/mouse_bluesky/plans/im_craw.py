@@ -7,7 +7,7 @@ from typing import Any
 
 import h5py
 
-from .configure import collect_baseline_motor_readbacks
+from .configure import collect_baseline_motor_readbacks, collect_sensor_readbacks
 
 
 def _as_dataset_value(value: Any) -> int | float | str:
@@ -48,6 +48,7 @@ def write_im_craw_nxs(
     metadata = dict(run_md or {})
 
     state_values = collect_baseline_motor_readbacks(namespace=namespace)
+    sensor_values = collect_sensor_readbacks(namespace=namespace)
     source_name = getattr(xray_generator, "name", "")
     source_voltage = getattr(xray_generator, "voltage", None)
     source_current = getattr(xray_generator, "current", None)
@@ -83,6 +84,8 @@ def write_im_craw_nxs(
             _write_dataset(f, "/entry1/instrument/source/current", source_current.get())
 
         for hdf5_path, value in state_values.items():
+            _write_dataset(f, hdf5_path, value)
+        for hdf5_path, value in sensor_values.items():
             _write_dataset(f, hdf5_path, value)
 
     return out

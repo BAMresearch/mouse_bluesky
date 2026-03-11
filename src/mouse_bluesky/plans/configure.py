@@ -90,8 +90,16 @@ GENERATOR_BASELINE_SIGNALS: tuple[str, ...] = (
 
 SENSOR_BASELINE_SIGNALS: tuple[str, ...] = (
     "pressure_gauge.pressure",
-    "arduino.temperature_env", 
+    "arduino.temperature_env",
     "arduino.temperature_stage",
+)
+
+HDF5_SENSOR_MAP = Hdf5OphydMap(
+    {
+        "/saxs/Saxslab/chamber_pressure": "pressure_gauge.pressure",
+        "/entry1/experiment/environment_temperature": "arduino.temperature_env",
+        "/entry1/experiment/stage_temperature": "arduino.temperature_stage",
+    }
 )
 
 MOVE_IN_GROUPS: tuple[tuple[str, ...], ...] = (
@@ -237,6 +245,17 @@ def collect_baseline_motor_readbacks(*, namespace: Mapping[str, object] | None =
                 continue
             values[hdf5_path] = _readback_value(signal)
 
+    return values
+
+
+def collect_sensor_readbacks(*, namespace: Mapping[str, object] | None = None) -> dict[str, float]:
+    """Collect optional sensor readbacks keyed by NeXus dataset path."""
+    values: dict[str, float] = {}
+    for hdf5_path, signal_name in HDF5_SENSOR_MAP.items():
+        signal = _try_resolve_dotted_name(signal_name, namespace=namespace)
+        if signal is None:
+            continue
+        values[hdf5_path] = _readback_value(signal)
     return values
 
 
