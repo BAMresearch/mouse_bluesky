@@ -4,7 +4,6 @@ import inspect
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
 
 import h5py
 from attrs import field, frozen
@@ -112,7 +111,7 @@ MOVE_IN_GROUPS: tuple[tuple[str, ...], ...] = (
 )
 
 
-def _resolve_dotted_name(name: str, *, namespace: Mapping[str, Any] | None = None) -> Any:
+def _resolve_dotted_name(name: str, *, namespace: Mapping[str, object] | None = None) -> object:
     parts = name.split(".")
     if not parts:
         raise ValueError("Empty dotted name")
@@ -153,7 +152,7 @@ def _select_apply_ophyd_map(f: h5py.File) -> dict[str, str]:
     return ophyd_map
 
 
-def _readback_value(signal: Any) -> float:
+def _readback_value(signal: object) -> float:
     if hasattr(signal, "user_readback"):
         return float(signal.user_readback.get())
     if hasattr(signal, "position"):
@@ -163,14 +162,14 @@ def _readback_value(signal: Any) -> float:
     raise TypeError(f"Cannot read value from signal object: {signal!r}")
 
 
-def _try_resolve_dotted_name(name: str, *, namespace: Mapping[str, Any] | None = None) -> Any | None:
+def _try_resolve_dotted_name(name: str, *, namespace: Mapping[str, object] | None = None) -> object | None:
     try:
         return _resolve_dotted_name(name, namespace=namespace)
     except Exception:
         return None
 
 
-def build_baseline_signals(*, namespace: Mapping[str, Any] | None = None) -> list[Any]:
+def build_baseline_signals(*, namespace: Mapping[str, object] | None = None) -> list[object]:
     """Build an ordered baseline signal list for RunEngine SupplementalData.
 
     Baseline always includes all signals mapped in ``HDF5_OPHYD_MAP_BASE``.
@@ -189,7 +188,7 @@ def build_baseline_signals(*, namespace: Mapping[str, Any] | None = None) -> lis
         if _try_resolve_dotted_name(signal_name, namespace=namespace) is not None:
             signal_names.append(signal_name)
 
-    baseline_signals: list[Any] = []
+    baseline_signals: list[object] = []
     seen_ids: set[int] = set()
     for signal_name in signal_names:
         signal = _resolve_dotted_name(signal_name, namespace=namespace)
@@ -202,7 +201,7 @@ def build_baseline_signals(*, namespace: Mapping[str, Any] | None = None) -> lis
     return baseline_signals
 
 
-def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, Any] | None = None) -> Iterator:
+def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, object] | None = None) -> Iterator:
     """Apply a machine configuration from ``{config_root}/{config_id}.nxs``.
 
     The plan:
@@ -256,7 +255,7 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, An
         yield from bps.mv(signal, values[hdf5_path])
 
 
-def save_config(*, config_id: int, config_root: str, namespace: Mapping[str, Any] | None = None) -> Iterator:
+def save_config(*, config_id: int, config_root: str, namespace: Mapping[str, object] | None = None) -> Iterator:
     """Persist the current machine state to ``{config_root}/{config_id}.nxs``.
 
     This records all signals in ``HDF5_OPHYD_MAP_BASE`` plus
