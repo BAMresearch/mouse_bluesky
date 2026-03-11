@@ -3,9 +3,11 @@ from __future__ import annotations
 import inspect
 from collections.abc import Iterator, Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import h5py
+from attrs import field, frozen
 from bluesky import plan_stubs as bps
 
 # NOTE: when adding devices, add them here. For example, adding syringe injector positions and
@@ -14,48 +16,71 @@ from bluesky import plan_stubs as bps
 # can be done as well, to keep track of device state during operation.
 # TODO: add the pressure gauge readout.
 
+
+@frozen
+class Hdf5OphydMap(Mapping[str, str]):
+    """Immutable map of HDF5 dataset paths to dotted Ophyd names."""
+
+    _mapping: Mapping[str, str] = field(converter=lambda value: MappingProxyType(dict(value)), repr=False)
+
+    def __getitem__(self, key: str) -> str:
+        return self._mapping[key]
+
+    def __iter__(self):
+        return iter(self._mapping)
+
+    def __len__(self) -> int:
+        return len(self._mapping)
+
+
 # create a registry for "movable devices" that defines a machine configuration and needs to be moved
 # maps the field paths in nexus to ophyd devices
-HDF5_OPHYD_MAP_BASE: dict[str, str] = {
-    # detector stage
-    "/saxs/Saxslab/detx": "det_stage.x",
-    "/saxs/Saxslab/dety": "det_stage.y",
-    "/saxs/Saxslab/detz": "det_stage.z",
-    # beam stop
-    "/saxs/Saxslab/bsr": "beam_stop.bsr",
-    "/saxs/Saxslab/bsz": "beam_stop.bsz",
-    # dual source motor
-    "/saxs/Saxslab/dual": "dual.dual",
-    # upstream slits
-    "/saxs/Saxslab/s1bot": "s1.bot",
-    "/saxs/Saxslab/s1top": "s1.top",
-    "/saxs/Saxslab/s1hl": "s1.left",
-    "/saxs/Saxslab/s1hr": "s1.right",
-    # middle slits
-    "/saxs/Saxslab/s2bot": "s2.bot",
-    "/saxs/Saxslab/s2top": "s2.top",
-    "/saxs/Saxslab/s2hl": "s2.left",
-    "/saxs/Saxslab/s2hr": "s2.right",
-    # downstream slits
-    "/saxs/Saxslab/s3bot": "s3.bot",
-    "/saxs/Saxslab/s3top": "s3.top",
-    "/saxs/Saxslab/s3hl": "s3.left",
-    "/saxs/Saxslab/s3hr": "s3.right",
-}
+HDF5_OPHYD_MAP_BASE = Hdf5OphydMap(
+    {
+        # detector stage
+        "/saxs/Saxslab/detx": "det_stage.x",
+        "/saxs/Saxslab/dety": "det_stage.y",
+        "/saxs/Saxslab/detz": "det_stage.z",
+        # beam stop
+        "/saxs/Saxslab/bsr": "beam_stop.bsr",
+        "/saxs/Saxslab/bsz": "beam_stop.bsz",
+        # dual source motor
+        "/saxs/Saxslab/dual": "dual.dual",
+        # upstream slits
+        "/saxs/Saxslab/s1bot": "s1.bot",
+        "/saxs/Saxslab/s1top": "s1.top",
+        "/saxs/Saxslab/s1hl": "s1.left",
+        "/saxs/Saxslab/s1hr": "s1.right",
+        # middle slits
+        "/saxs/Saxslab/s2bot": "s2.bot",
+        "/saxs/Saxslab/s2top": "s2.top",
+        "/saxs/Saxslab/s2hl": "s2.left",
+        "/saxs/Saxslab/s2hr": "s2.right",
+        # downstream slits
+        "/saxs/Saxslab/s3bot": "s3.bot",
+        "/saxs/Saxslab/s3top": "s3.top",
+        "/saxs/Saxslab/s3hl": "s3.left",
+        "/saxs/Saxslab/s3hr": "s3.right",
+    }
+)
 
 # actually not needed to move the sample stages... probably move elsewhere.
-HDF5_OPHYD_MAP_YZ: dict[str, str] = {
-    # standard sample stage
-    "/saxs/Saxslab/ysam": "sample_stage_yz.y",
-    "/saxs/Saxslab/zsam": "sample_stage_yz.z",
-}
+HDF5_OPHYD_MAP_YZ = Hdf5OphydMap(
+    {
+        # standard sample stage
+        "/saxs/Saxslab/ysam": "sample_stage_yz.y",
+        "/saxs/Saxslab/zsam": "sample_stage_yz.z",
+    }
+)
 
 # additional devices for GI stage - move if present in the config
-HDF5_OPHYD_MAP_GI: dict[str, str] = {
-    "/saxs/Saxslab/gsx": "sample_stage_gi.x",
-    "/saxs/Saxslab/gsy": "sample_stage_gi.y",
-    # ... TODO: complete.
-}
+HDF5_OPHYD_MAP_GI = Hdf5OphydMap(
+    {
+        "/saxs/Saxslab/gsx": "sample_stage_gi.x",
+        "/saxs/Saxslab/gsy": "sample_stage_gi.y",
+        # ... TODO: complete.
+    }
+)
 
 GENERATOR_BASELINE_SIGNALS: tuple[str, ...] = (
     "cu_generator.voltage",
@@ -66,7 +91,10 @@ GENERATOR_BASELINE_SIGNALS: tuple[str, ...] = (
 
 MOVE_IN_GROUPS: tuple[tuple[str, ...], ...] = (
     # independently powered stages
-    ("/saxs/Saxslab/dual", "/saxs/Saxslab/detx",),
+    (
+        "/saxs/Saxslab/dual",
+        "/saxs/Saxslab/detx",
+    ),
     # top-bottom slit blades
     ("/saxs/Saxslab/s1top", "/saxs/Saxslab/s1bot"),
     ("/saxs/Saxslab/s2top", "/saxs/Saxslab/s2bot"),
@@ -112,15 +140,8 @@ def _resolve_dotted_name(name: str, *, namespace: Mapping[str, Any] | None = Non
     return obj
 
 
-def _select_ophyd_map(f: h5py.File) -> dict[str, str]:
-    ophyd_map = dict(HDF5_OPHYD_MAP_BASE)
-
-    has_any_yz = any(path in f for path in HDF5_OPHYD_MAP_YZ)
-    if has_any_yz:
-        missing = [path for path in HDF5_OPHYD_MAP_YZ if path not in f]
-        if missing:
-            raise KeyError(f"Incomplete YZ stage fields in config file: {missing}")
-        ophyd_map.update(HDF5_OPHYD_MAP_YZ)
+def _select_apply_ophyd_map(f: h5py.File) -> dict[str, str]:
+    ophyd_map = dict(HDF5_OPHYD_MAP_BASE.items())
 
     has_any_gi = any(path in f for path in HDF5_OPHYD_MAP_GI)
     if has_any_gi:
@@ -188,9 +209,11 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, An
     1. Loads scalar setpoints from the NeXus file using the HDF5->Ophyd maps.
     2. Resolves mapped dotted names (for example ``"s1.top"``) to live Ophyd
        objects, optionally using ``namespace`` as the root lookup source.
-    3. Executes grouped moves in ``MOVE_IN_GROUPS`` order to coordinate motors
+    3. Optionally includes GI stage signals if present in the file.
+       YZ sample-stage signals are intentionally not moved by this plan.
+    4. Executes grouped moves in ``MOVE_IN_GROUPS`` order to coordinate motors
        that should move together.
-    4. Moves remaining mapped signals one-by-one.
+    5. Moves remaining mapped signals one-by-one.
 
     Raises:
         FileNotFoundError: If the config file does not exist.
@@ -205,7 +228,7 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, An
         for hdf5_path in HDF5_OPHYD_MAP_BASE:
             if hdf5_path not in f:
                 raise KeyError(f"Expected config dataset not found: {hdf5_path} from BASE map")
-        ophyd_map = _select_ophyd_map(f)
+        ophyd_map = _select_apply_ophyd_map(f)
 
         # resolve ophyd objects and read values from the file
         resolved = {
@@ -246,7 +269,7 @@ def save_config(*, config_id: int, config_root: str, namespace: Mapping[str, Any
     config_file_path = Path(config_root) / f"{config_id}.nxs"
     config_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    ophyd_map = {**HDF5_OPHYD_MAP_BASE, **HDF5_OPHYD_MAP_YZ}
+    ophyd_map = {**dict(HDF5_OPHYD_MAP_BASE.items()), **dict(HDF5_OPHYD_MAP_YZ.items())}
     values = {}
     for hdf5_path, signal_name in ophyd_map.items():
         signal = _resolve_dotted_name(signal_name, namespace=namespace)
