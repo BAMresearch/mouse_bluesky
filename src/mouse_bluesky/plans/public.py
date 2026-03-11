@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Mapping
 
 from bluesky import plan_stubs as bps
 
@@ -14,7 +14,7 @@ from .sequence import allocate_sequence_dir
 from .snapshot import snapshot_state
 
 
-def _get_ipython_user_ns() -> Mapping[str, Any]:
+def _get_ipython_user_ns() -> Mapping[str, object]:
     try:
         from IPython import get_ipython
     except ImportError:
@@ -27,11 +27,11 @@ def _get_ipython_user_ns() -> Mapping[str, Any]:
 
 
 def _resolve_optional_device(
-    value: Any,
+    value: object | None,
     *,
     name: str,
-    namespace: Mapping[str, Any] | None = None,
-) -> Any:
+    namespace: Mapping[str, object] | None = None,
+) -> object:
     if value is not None:
         return value
     ns = namespace if namespace is not None else _get_ipython_user_ns()
@@ -57,7 +57,7 @@ def measure_yzstage(
     eiger=None,
     sample_stage_yz=None,
     beam_stop=None,
-    namespace: Mapping[str, Any] | None = None,
+    namespace: Mapping[str, object] | None = None,
     snapshot_signals=(),
     sample_exposure_time: float = 600,
     sampleposition: dict[str, float] | None = None,
