@@ -50,3 +50,22 @@ def test_sample_exposure_time_is_forwarded_to_measurement_kwargs() -> None:
         {"configs": [101, 102], "repeats": 1, "sample_exposure_time": 42.5, "collate": CollatePolicy.ALLOW},
     )
     assert all(float(s.kwargs["sample_exposure_time"]) == 42.5 for s in res.specs)
+
+
+def test_sample_exposure_time_list_matches_configs() -> None:
+    e = FakeEntry(1, "2025002", 13, "Cu C14", "standard_measurements", {})
+    res = compile_standard_measurements(
+        e,
+        {"configs": [101, 102], "repeats": 1, "sample_exposure_time": [11, 22], "collate": CollatePolicy.ALLOW},
+    )
+    by_cfg = {int(s.kwargs["config_id"]): float(s.kwargs["sample_exposure_time"]) for s in res.specs}
+    assert by_cfg == {101: 11.0, 102: 22.0}
+
+
+def test_sample_exposure_time_list_length_mismatch_raises() -> None:
+    e = FakeEntry(1, "2025002", 13, "Cu C14", "standard_measurements", {})
+    with pytest.raises(ValueError, match="sample_exposure_time"):
+        compile_standard_measurements(
+            e,
+            {"configs": [101, 102], "repeats": 1, "sample_exposure_time": [11], "collate": CollatePolicy.ALLOW},
+        )

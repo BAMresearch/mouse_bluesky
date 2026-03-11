@@ -64,7 +64,6 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
     config_ids = [int(x) for x in configs]
 
     repeats_raw = params.get("repeats", 1)
-    sample_exposure_time = params.get("sample_exposure_time")
 
     if isinstance(repeats_raw, list):
         repeats_list = [int(x) for x in repeats_raw]
@@ -76,10 +75,25 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
             raise ValueError("'repeats' must be >= 1")
         repeats_list = [repeats_int] * len(config_ids)
 
+    sample_exposure_time_raw = params.get("sample_exposure_time")
+    if isinstance(sample_exposure_time_raw, list):
+        sample_exposure_times = [float(x) for x in sample_exposure_time_raw]
+        if len(sample_exposure_times) != len(config_ids):
+            raise ValueError(
+                "'sample_exposure_time' list length "
+                f"({len(sample_exposure_times)}) must match 'configs' length ({len(config_ids)})"
+            )
+    elif sample_exposure_time_raw is None:
+        sample_exposure_times = [None] * len(config_ids)
+    else:
+        sample_exposure_times = [float(sample_exposure_time_raw)] * len(config_ids)
+
     sample_key = _sample_key(entry)
 
     specs: list[PlanSpec] = []
-    for step, (cfg, nrep) in enumerate(zip(config_ids, repeats_list, strict=True)):
+    for step, (cfg, nrep, exposure_time) in enumerate(
+        zip(config_ids, repeats_list, sample_exposure_times, strict=True)
+    ):
         if nrep < 1:
             raise ValueError(f"repeats[{step}] must be >= 1 (got {nrep})")
         for r in range(nrep):
@@ -94,8 +108,8 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
                 "repeat_index": r,
                 "sampleposition": dict(entry.positions),
             }
-            if sample_exposure_time is not None:
-                kwargs["sample_exposure_time"] = float(sample_exposure_time)
+            if exposure_time is not None:
+                kwargs["sample_exposure_time"] = exposure_time
             specs.append(
                 PlanSpec(
                     name="measure_yzstage",

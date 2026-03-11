@@ -14,8 +14,10 @@ def allocate_sequence_dir(*, root: Path, ymd: str, batchnum: int) -> tuple[int, 
     base = root / ymd[:4] / ymd
     base.mkdir(parents=True, exist_ok=True)
 
-    prefix = f"{ymd}_{batchnum:03d}_"
-    for seq in range(0, 1_000_000_000):  # brute force, but should be fast enough since mkdir is atomic and we expect few collisions
+    prefix = f"{ymd}_{batchnum}_"
+    for seq in range(
+        0, 1_000_000_000
+    ):  # brute force, but should be fast enough since mkdir is atomic and we expect few collisions
         dest = base / f"{prefix}{seq}"
         try:
             dest.mkdir()
