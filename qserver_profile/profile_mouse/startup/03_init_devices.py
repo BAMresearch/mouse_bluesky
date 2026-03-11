@@ -2,6 +2,7 @@ from mouse_bluesky.devices.eiger import EigerWithStats, ad_setup, ad_configure_e
 from mouse_bluesky.devices.generator import XrayGenerator
 from mouse_bluesky.devices.mouse_motors import BeamStop, DualSourceMotor, SampleStageYZ, Slit
 from mouse_bluesky.devices.mouse_motors import DetectorMotions
+from mouse_bluesky.devices.mouse_sensors import PressureGauge, Arduino
 
 # for my IOC, these parameters apply:
 AD_IOC = "eiger:"
@@ -29,3 +30,7 @@ cu_generator = XrayGenerator("source_cu:", name="cu_generator")
 mo_generator = XrayGenerator("source_mo:", name="mo_generator")
 
 det_stage = DetectorMotions("ims:", name="det_stage")
+
+# sensors
+pressure_gauge = PressureGauge("pressure_gauge:", name="pressure_gauge")
+arduino = Arduino("portenta:", name="arduino")

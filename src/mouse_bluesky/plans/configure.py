@@ -88,6 +88,12 @@ GENERATOR_BASELINE_SIGNALS: tuple[str, ...] = (
     "mo_generator.current",
 )
 
+SENSOR_BASELINE_SIGNALS: tuple[str, ...] = (
+    "pressure_gauge.pressure",
+    "arduino.temperature_env", 
+    "arduino.temperature_stage",
+)
+
 MOVE_IN_GROUPS: tuple[tuple[str, ...], ...] = (
     # independently powered stages
     (
@@ -196,6 +202,10 @@ def build_baseline_signals(*, namespace: Mapping[str, object] | None = None) -> 
                 signal_names.append(signal_name)
 
     for signal_name in GENERATOR_BASELINE_SIGNALS:
+        if _try_resolve_dotted_name(signal_name, namespace=namespace) is not None:
+            signal_names.append(signal_name)
+
+    for signal_name in SENSOR_BASELINE_SIGNALS:
         if _try_resolve_dotted_name(signal_name, namespace=namespace) is not None:
             signal_names.append(signal_name)
 

@@ -1,7 +1,8 @@
 . .venv/bin/activate
-start-re-manager --startup-dir ./qserver_profile/startup/
+start-re-manager --ipython-dir ./qserver_profile --startup-profile mouse --use-ipython-kernel ON
+
 sudo apt install redis
-start-re-manager --startup-dir ./qserver_profile/startup/
+
 ls
 cat tiled_api.key
 TILED_API_KEY=$(cat tiled_api.key)
