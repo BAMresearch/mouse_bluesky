@@ -126,10 +126,22 @@ def test_measure_yzstage_writes_im_craw_next_to_detector_data(
     )
     list(plan)
 
-    out = destination / "im_craw.nxs"
-    assert out.exists()
-    with h5py.File(out, "r") as f:
+    sample_out = destination / "im_craw.nxs"
+    beam_profile_out = destination / "beam_profile" / "im_craw.nxs"
+    beam_profile_through_sample_out = destination / "beam_profile_through_sample" / "im_craw.nxs"
+
+    assert sample_out.exists()
+    assert beam_profile_out.exists()
+    assert beam_profile_through_sample_out.exists()
+
+    with h5py.File(sample_out, "r") as f:
         assert _scalar(f["/entry1/experiment/entry_row_index"][()]) == 9
         assert _scalar(f["/entry1/experiment/repeat_index"][()]) == 2
         assert _scalar(f["/entry1/instrument/configuration"][()]) == 161
         assert float(_scalar(f["/entry1/instrument/detector00/count_time"][()])) == 33.0
+
+    with h5py.File(beam_profile_out, "r") as f:
+        assert float(_scalar(f["/entry1/instrument/detector00/count_time"][()])) == 20.0
+
+    with h5py.File(beam_profile_through_sample_out, "r") as f:
+        assert float(_scalar(f["/entry1/instrument/detector00/count_time"][()])) == 20.0
