@@ -28,6 +28,8 @@ def _write_dataset(f: h5py.File, path: str, value: Any) -> None:
     parent = str(Path(path).parent)
     if parent and parent != "/":
         f.require_group(parent)
+    if path in f:
+        del f[path]
     dataset_value = _as_dataset_value(value)
     if isinstance(dataset_value, str):
         f.create_dataset(path, data=dataset_value, dtype=h5py.string_dtype("utf-8"))
