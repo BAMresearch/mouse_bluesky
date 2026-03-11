@@ -121,6 +121,17 @@ def _resolve_dotted_name(name: str, *, namespace: Mapping[str, object] | None = 
     if namespace is not None and root in namespace:
         obj = namespace[root]
     else:
+        # Queue Server startup namespace (set by worker before plan execution).
+        try:
+            from bluesky_queueserver.manager.profile_tools import global_user_namespace
+
+            user_ns = global_user_namespace.user_ns
+            if isinstance(user_ns, Mapping) and root in user_ns:
+                obj = user_ns[root]
+        except Exception:
+            pass
+
+    if obj is None:
         # Search frames so plans can resolve devices from Queue Server startup namespace.
         for frame_info in inspect.stack():
             frame = frame_info.frame

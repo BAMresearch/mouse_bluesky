@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from bluesky import RunEngine
+from bluesky_queueserver.manager.profile_tools import global_user_namespace
 from ophyd.sim import SynAxis
 
 from mouse_bluesky.plans.configure import apply_config
@@ -46,3 +47,16 @@ def test_apply_config_does_not_move_sample_stage_yz():
 
     assert namespace["sample_stage_yz"].y.position == y_before
     assert namespace["sample_stage_yz"].z.position == z_before
+
+
+def test_apply_config_uses_qserver_user_namespace_when_namespace_is_none():
+    namespace = _namespace_with_axes()
+    RE = RunEngine({})
+    config_root = Path("tests/data/mouse_configs").as_posix()
+
+    original_user_ns = dict(global_user_namespace.user_ns)
+    try:
+        global_user_namespace.set_user_namespace(user_ns=namespace, use_ipython=False)
+        RE(apply_config(config_id=123, config_root=config_root))
+    finally:
+        global_user_namespace.set_user_namespace(user_ns=original_user_ns, use_ipython=False)
