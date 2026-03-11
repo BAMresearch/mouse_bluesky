@@ -10,6 +10,7 @@ from bluesky import plan_stubs as bps
 from mouse_bluesky.settings import Settings
 
 from .atomic import measure_yzstage_atomic
+from .im_craw import write_im_craw_nxs
 from .sequence import allocate_sequence_dir
 from .snapshot import snapshot_state
 
@@ -97,6 +98,13 @@ def measure_yzstage(
             "destination": destination.as_posix(),
             "sample_exposure_time": sample_exposure_time,
         }
+    )
+
+    write_im_craw_nxs(
+        destination=destination,
+        run_md=run_md,
+        namespace=namespace,
+        xray_generator=xray_generator,
     )
 
     yield from bps.open_run(md=run_md)

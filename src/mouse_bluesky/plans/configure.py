@@ -212,6 +212,24 @@ def build_baseline_signals(*, namespace: Mapping[str, object] | None = None) -> 
     return baseline_signals
 
 
+def collect_baseline_motor_readbacks(*, namespace: Mapping[str, object] | None = None) -> dict[str, float]:
+    """Collect baseline-mapped motor readbacks keyed by NeXus dataset path."""
+    values: dict[str, float] = {}
+
+    for hdf5_path, signal_name in HDF5_OPHYD_MAP_BASE.items():
+        signal = _resolve_dotted_name(signal_name, namespace=namespace)
+        values[hdf5_path] = _readback_value(signal)
+
+    for optional_map in (HDF5_OPHYD_MAP_YZ, HDF5_OPHYD_MAP_GI):
+        for hdf5_path, signal_name in optional_map.items():
+            signal = _try_resolve_dotted_name(signal_name, namespace=namespace)
+            if signal is None:
+                continue
+            values[hdf5_path] = _readback_value(signal)
+
+    return values
+
+
 def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, object] | None = None) -> Iterator:
     """Apply a machine configuration from ``{config_root}/{config_id}.nxs``.
 
