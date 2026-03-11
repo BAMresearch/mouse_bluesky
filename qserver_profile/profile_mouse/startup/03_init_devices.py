@@ -1,4 +1,4 @@
-from mouse_bluesky.devices.eiger import EigerWithStats, ad_setup
+from mouse_bluesky.devices.eiger import EigerWithStats, ad_setup, ad_configure_exposure
 from mouse_bluesky.devices.generator import XrayGenerator
 from mouse_bluesky.devices.mouse_motors import BeamStop, DualSourceMotor, SampleStageYZ, Slit
 from mouse_bluesky.devices.mouse_motors import DetectorMotions

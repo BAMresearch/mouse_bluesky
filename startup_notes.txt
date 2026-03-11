@@ -1,0 +1,22 @@
+. .venv/bin/activate
+start-re-manager --startup-dir ./qserver_profile/startup/
+sudo apt install redis
+start-re-manager --startup-dir ./qserver_profile/startup/
+ls
+cat tiled_api.key
+TILED_API_KEY=$(cat tiled_api.key)
+echo TILED_API_KEY
+echo $TILED_API_KEY
+TILED_URI="https://tiled.scicat65.ddnss.de"
+
+2666  qserver manager stop
+ 2667  qserver environment open
+ 2668  mouse-bluesky enqueue /mnt/vsi-db/Measurements/SAXS002/logbooks/Logbook_MOUSE.xlsx /mnt/vsi-db/Proposals/SAXS002/ --root-path /tmp/data --config-root /mnt/vsi-db/Measurements/SAXS002/data/configurations/ --zmq tcp://127.0.0.1:60615 
+ 2669  qserver queue start
+ 2670  qserver queue status
+ 2671  qserver status
+ 2672  qserver history get
+ 2673  qserver queue stop
+ 2674  qserver history get
+ 2675  qserver environment close
+ 2676  qserver manager stop

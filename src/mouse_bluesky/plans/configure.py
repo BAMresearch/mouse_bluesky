@@ -29,18 +29,18 @@ HDF5_OPHYD_MAP_BASE: dict[str, str] = {
     # upstream slits
     "/saxs/Saxslab/s1bot": "s1.bot",
     "/saxs/Saxslab/s1top": "s1.top",
-    "/saxs/Saxslab/s1left": "s1.left",
-    "/saxs/Saxslab/s1right": "s1.right",
+    "/saxs/Saxslab/s1hl": "s1.left",
+    "/saxs/Saxslab/s1hr": "s1.right",
     # middle slits
     "/saxs/Saxslab/s2bot": "s2.bot",
     "/saxs/Saxslab/s2top": "s2.top",
-    "/saxs/Saxslab/s2left": "s2.left",
-    "/saxs/Saxslab/s2right": "s2.right",
+    "/saxs/Saxslab/s2hl": "s2.left",
+    "/saxs/Saxslab/s2hr": "s2.right",
     # downstream slits
     "/saxs/Saxslab/s3bot": "s3.bot",
     "/saxs/Saxslab/s3top": "s3.top",
-    "/saxs/Saxslab/s3left": "s3.left",
-    "/saxs/Saxslab/s3right": "s3.right",
+    "/saxs/Saxslab/s3hl": "s3.left",
+    "/saxs/Saxslab/s3hr": "s3.right",
 }
 
 # actually not needed to move the sample stages... probably move elsewhere.
@@ -66,20 +66,19 @@ GENERATOR_BASELINE_SIGNALS: tuple[str, ...] = (
 
 MOVE_IN_GROUPS: tuple[tuple[str, ...], ...] = (
     # independently powered stages
-    ("/saxs/Saxslab/dual", "/saxs/Saxslab/dual",),
+    ("/saxs/Saxslab/dual", "/saxs/Saxslab/detx",),
     # top-bottom slit blades
     ("/saxs/Saxslab/s1top", "/saxs/Saxslab/s1bot"),
     ("/saxs/Saxslab/s2top", "/saxs/Saxslab/s2bot"),
     ("/saxs/Saxslab/s3top", "/saxs/Saxslab/s3bot"),
     # left-right slit blades
-    ("/saxs/Saxslab/s1left", "/saxs/Saxslab/s1right"),
-    ("/saxs/Saxslab/s2left", "/saxs/Saxslab/s2right"),
-    ("/saxs/Saxslab/s3left", "/saxs/Saxslab/s3right"),
+    ("/saxs/Saxslab/s1hl", "/saxs/Saxslab/s1hr"),
+    ("/saxs/Saxslab/s2hl", "/saxs/Saxslab/s2hr"),
+    ("/saxs/Saxslab/s3hl", "/saxs/Saxslab/s3hr"),
     # beam stop motors
     ("/saxs/Saxslab/bsr",),
     ("/saxs/Saxslab/bsz",),
     # detector y, z
-    ("/saxs/Saxslab/detx",),
     ("/saxs/Saxslab/dety",),
     ("/saxs/Saxslab/detz",),
 )

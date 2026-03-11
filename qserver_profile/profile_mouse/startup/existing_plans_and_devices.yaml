@@ -2834,6 +2834,28 @@ existing_devices:
     is_readable: true
     module: mouse_bluesky.devices.mouse_motors
 existing_plans:
+  ad_configure_exposure:
+    module: mouse_bluesky.devices.eiger
+    name: ad_configure_exposure
+    parameters:
+    - kind:
+        name: POSITIONAL_OR_KEYWORD
+        value: 1
+      name: det
+    - annotation:
+        type: int
+      default: '1'
+      kind:
+        name: POSITIONAL_OR_KEYWORD
+        value: 1
+      name: exposure_time
+    - default: '''/tmp/current/'''
+      kind:
+        name: POSITIONAL_OR_KEYWORD
+        value: 1
+      name: output_path
+    properties:
+      is_generator: true
   apply_config:
     description: Apply a machine configuration from ``{config_root}/{config_id}.nxs``.
     module: mouse_bluesky.plans.configure
