@@ -64,13 +64,12 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
     config_ids = [int(x) for x in configs]
 
     repeats_raw = params.get("repeats", 1)
+    sample_exposure_time = params.get("sample_exposure_time")
 
     if isinstance(repeats_raw, list):
         repeats_list = [int(x) for x in repeats_raw]
         if len(repeats_list) != len(config_ids):
-            raise ValueError(
-                f"'repeats' length ({len(repeats_list)}) must match 'configs' length ({len(config_ids)})"
-            )
+            raise ValueError(f"'repeats' length ({len(repeats_list)}) must match 'configs' length ({len(config_ids)})")
     else:
         repeats_int = int(repeats_raw)
         if repeats_int < 1:
@@ -84,20 +83,23 @@ def compile_standard_measurements(entry: LogbookEntryLike, params: Mapping[str, 
         if nrep < 1:
             raise ValueError(f"repeats[{step}] must be >= 1 (got {nrep})")
         for r in range(nrep):
+            kwargs: dict[str, Any] = {
+                "entry_row_index": entry.row_index,
+                "proposal": entry.proposal,
+                "sampleid": entry.sampleid,
+                "sampos": entry.sampos,
+                "ymd": entry.ymd,
+                "batchnum": entry.batchnum,
+                "config_id": cfg,
+                "repeat_index": r,
+                "sampleposition": dict(entry.positions),
+            }
+            if sample_exposure_time is not None:
+                kwargs["sample_exposure_time"] = float(sample_exposure_time)
             specs.append(
                 PlanSpec(
                     name="measure_yzstage",
-                    kwargs={
-                        "entry_row_index": entry.row_index,
-                        "proposal": entry.proposal,
-                        "sampleid": entry.sampleid,
-                        "sampos": entry.sampos,
-                        "ymd": entry.ymd,
-                        "batchnum": entry.batchnum,
-                        "config_id": cfg,
-                        "repeat_index": r,
-                        "sampleposition": dict(entry.positions),
-                    },
+                    kwargs=kwargs,
                     meta={"sample_key": sample_key, "config_id": cfg, "step": step, "repeat": r},
                 )
             )

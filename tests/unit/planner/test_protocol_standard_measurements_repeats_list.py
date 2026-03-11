@@ -41,3 +41,12 @@ def test_repeats_list_length_mismatch_raises() -> None:
     e = FakeEntry(1, "2025002", 13, "Cu C14", "standard_measurements", {})
     with pytest.raises(ValueError):
         compile_standard_measurements(e, {"configs": [101, 102], "repeats": [1, 2, 3], "collate": CollatePolicy.ALLOW})
+
+
+def test_sample_exposure_time_is_forwarded_to_measurement_kwargs() -> None:
+    e = FakeEntry(1, "2025002", 13, "Cu C14", "standard_measurements", {})
+    res = compile_standard_measurements(
+        e,
+        {"configs": [101, 102], "repeats": 1, "sample_exposure_time": 42.5, "collate": CollatePolicy.ALLOW},
+    )
+    assert all(float(s.kwargs["sample_exposure_time"]) == 42.5 for s in res.specs)
