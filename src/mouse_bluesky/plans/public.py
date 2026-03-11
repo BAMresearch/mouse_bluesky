@@ -28,6 +28,7 @@ def measure_yzstage(
     beam_stop=None,
     shutter=None,
     snapshot_signals=(),
+    sample_exposure_time: float=600,
     sampleposition: dict[str, float] | None = None,
 ) -> Iterator:
     """Open one run, capture metadata/snapshot, and execute the atomic measurement."""
@@ -50,6 +51,7 @@ def measure_yzstage(
             "repeat_index": int(repeat_index),
             "sequence_index": int(sequence_index),
             "destination": destination.as_posix(),
+            "sample_exposure_time": sample_exposure_time,
         }
     )
 
@@ -67,6 +69,7 @@ def measure_yzstage(
             shutter=shutter,
             sampleposition=sampleposition,
             destination=destination,
+            sample_exposure_time= sample_exposure_time,
         )
 
         # Optional: mark success
