@@ -38,13 +38,14 @@ def _write_dataset(f: h5py.File, path: str, value: Any) -> None:
 def write_im_craw_nxs(
     *,
     destination: Path,
-    run_md: Mapping[str, object],
+    run_md: Mapping[str, object] | None = None,
     namespace: Mapping[str, object] | None = None,
     xray_generator: object | None = None,
 ) -> Path:
     """Write `im_craw.nxs` with run metadata and baseline-like machine state."""
     destination.mkdir(parents=True, exist_ok=True)
     out = destination / "im_craw.nxs"
+    metadata = dict(run_md or {})
 
     state_values = collect_baseline_motor_readbacks(namespace=namespace)
     source_name = getattr(xray_generator, "name", "")
@@ -62,15 +63,19 @@ def write_im_craw_nxs(
         sample.attrs["NX_class"] = "NXsample"
         sample.attrs["default"] = "name"
 
-        _write_dataset(f, "/entry1/experiment/logbook_json", dict(run_md))
-        for key, value in sorted(run_md.items()):
+        _write_dataset(f, "/entry1/experiment/logbook_json", metadata)
+        for key, value in sorted(metadata.items()):
             _write_dataset(f, f"/entry1/experiment/{_sanitize_dataset_name(key)}", value)
 
-        _write_dataset(f, "/entry1/sample/sampleid", run_md.get("sampleid", -1))
-        _write_dataset(f, "/entry1/sample/sampos", run_md.get("sampos", ""))
-        _write_dataset(f, "/entry1/sample/name", f"{run_md.get('proposal', '')}-{run_md.get('sampleid', '')}")
-        _write_dataset(f, "/entry1/instrument/configuration", run_md.get("config_id", -1))
-        _write_dataset(f, "/entry1/instrument/detector00/count_time", run_md.get("sample_exposure_time", ""))
+        _write_dataset(f, "/entry1/sample/sampleid", metadata.get("sampleid", -1))
+        _write_dataset(f, "/entry1/sample/sampos", metadata.get("sampos", ""))
+        _write_dataset(
+            f,
+            "/entry1/sample/name",
+            f"{metadata.get('proposal', '')}-{metadata.get('sampleid', '')}",
+        )
+        _write_dataset(f, "/entry1/instrument/configuration", metadata.get("config_id", -1))
+        _write_dataset(f, "/entry1/instrument/detector00/count_time", metadata.get("sample_exposure_time", ""))
         _write_dataset(f, "/entry1/instrument/source/name", source_name)
         if source_voltage is not None:
             _write_dataset(f, "/entry1/instrument/source/voltage", source_voltage.get())

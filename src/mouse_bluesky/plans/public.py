@@ -9,12 +9,7 @@ from bluesky import plan_stubs as bps
 
 from mouse_bluesky.settings import Settings
 
-from .atomic import (
-    BEAM_PROFILE_EXPOSURE_TIME,
-    BEAM_PROFILE_THROUGH_SAMPLE_EXPOSURE_TIME,
-    measure_yzstage_atomic,
-)
-from .im_craw import write_im_craw_nxs
+from .atomic import measure_yzstage_atomic
 from .sequence import allocate_sequence_dir
 from .snapshot import snapshot_state
 
@@ -104,21 +99,6 @@ def measure_yzstage(
         }
     )
 
-    im_craw_targets = (
-        (destination / "beam_profile", BEAM_PROFILE_EXPOSURE_TIME),
-        (destination / "beam_profile_through_sample", BEAM_PROFILE_THROUGH_SAMPLE_EXPOSURE_TIME),
-        (destination, sample_exposure_time),
-    )
-    for target, exposure_time in im_craw_targets:
-        target_md = dict(run_md)
-        target_md["sample_exposure_time"] = exposure_time
-        write_im_craw_nxs(
-            destination=target,
-            run_md=target_md,
-            namespace=namespace,
-            xray_generator=xray_generator,
-        )
-
     yield from bps.open_run(md=run_md)
     try:
         # Baseline should be configured on the RunEngine via SupplementalData.
@@ -134,6 +114,9 @@ def measure_yzstage(
             sampleposition=sampleposition,
             destination=destination,
             sample_exposure_time=sample_exposure_time,
+            run_md=run_md,
+            namespace=namespace,
+            xray_generator=xray_generator,
         )
 
         # Optional: mark success

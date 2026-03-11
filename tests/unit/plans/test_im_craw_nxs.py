@@ -15,7 +15,11 @@ from mouse_bluesky.plans.public import measure_yzstage
 def _namespace_with_devices() -> dict[str, object]:
     return {
         "det_stage": SimpleNamespace(x=SynAxis(name="detx"), y=SynAxis(name="dety"), z=SynAxis(name="detz")),
-        "beam_stop": SimpleNamespace(bsr=SynAxis(name="bsr"), bsz=SynAxis(name="bsz")),
+        "beam_stop": SimpleNamespace(
+            bsr=SynAxis(name="bsr"),
+            bsz=SynAxis(name="bsz"),
+            out_position=270.0,
+        ),
         "dual": SimpleNamespace(dual=SynAxis(name="dual")),
         "s1": SimpleNamespace(
             top=SynAxis(name="s1top"),
@@ -103,12 +107,12 @@ def test_measure_yzstage_writes_im_craw_next_to_detector_data(
         assert batchnum == 5
         return 7, destination
 
-    def fake_measure_yzstage_atomic(**kwargs):
+    def fake_mouse_eiger_measure(*args, **kwargs):
         if False:
-            yield kwargs
+            yield args, kwargs
 
     monkeypatch.setattr("mouse_bluesky.plans.public.allocate_sequence_dir", fake_allocate_sequence_dir)
-    monkeypatch.setattr("mouse_bluesky.plans.public.measure_yzstage_atomic", fake_measure_yzstage_atomic)
+    monkeypatch.setattr("mouse_bluesky.plans.atomic.mouse_eiger_measure", fake_mouse_eiger_measure)
 
     plan = measure_yzstage(
         entry_row_index=9,
