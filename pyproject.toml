@@ -39,6 +39,7 @@ qserver = [
 demo = [
   "ipython",
   "jupyter",
+  "matplotlib",
   "ophyd",  # already required, but ok to keep demo self-contained
 ]
 

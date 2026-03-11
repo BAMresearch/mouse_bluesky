@@ -18,9 +18,9 @@ from bluesky import plan_stubs as bps
 # maps the field paths in nexus to ophyd devices
 HDF5_OPHYD_MAP_BASE: dict[str, str] = {
     # detector stage
-    "/saxs/Saxslab/detx": "eiger.cam.x",
-    "/saxs/Saxslab/dety": "eiger.cam.y",
-    "/saxs/Saxslab/detz": "eiger.cam.z",
+    "/saxs/Saxslab/detx": "det_stage.x",
+    "/saxs/Saxslab/dety": "det_stage.y",
+    "/saxs/Saxslab/detz": "det_stage.z",
     # beam stop
     "/saxs/Saxslab/bsr": "beam_stop.bsr",
     "/saxs/Saxslab/bsz": "beam_stop.bsz",
@@ -52,8 +52,8 @@ HDF5_OPHYD_MAP_YZ: dict[str, str] = {
 
 # additional devices for GI stage - move if present in the config
 HDF5_OPHYD_MAP_GI: dict[str, str] = {
-    "/saxs/Saxslab/gsx": "gi_stage.x",
-    "/saxs/Saxslab/gsy": "gi_stage.y",
+    "/saxs/Saxslab/gsx": "sample_stage_gi.x",
+    "/saxs/Saxslab/gsy": "sample_stage_gi.y",
     # ... TODO: complete.
 }
 
@@ -66,7 +66,7 @@ GENERATOR_BASELINE_SIGNALS: tuple[str, ...] = (
 
 MOVE_IN_GROUPS: tuple[tuple[str, ...], ...] = (
     # independently powered stages
-    ("/saxs/Saxslab/dual", "/saxs/Saxslab/detx",),
+    ("/saxs/Saxslab/dual", "/saxs/Saxslab/dual",),
     # top-bottom slit blades
     ("/saxs/Saxslab/s1top", "/saxs/Saxslab/s1bot"),
     ("/saxs/Saxslab/s2top", "/saxs/Saxslab/s2bot"),
@@ -79,6 +79,7 @@ MOVE_IN_GROUPS: tuple[tuple[str, ...], ...] = (
     ("/saxs/Saxslab/bsr",),
     ("/saxs/Saxslab/bsz",),
     # detector y, z
+    ("/saxs/Saxslab/detx",),
     ("/saxs/Saxslab/dety",),
     ("/saxs/Saxslab/detz",),
 )

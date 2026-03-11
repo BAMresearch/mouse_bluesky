@@ -1,6 +1,7 @@
 from mouse_bluesky.devices.eiger import EigerWithStats, ad_setup
 from mouse_bluesky.devices.generator import XrayGenerator
 from mouse_bluesky.devices.mouse_motors import BeamStop, DualSourceMotor, SampleStageYZ, Slit
+from mouse_bluesky.devices.mouse_motors import DetectorMotions
 
 # for my IOC, these parameters apply:
 AD_IOC = "eiger:"
@@ -21,8 +22,10 @@ s3 = Slit('ims:s3', name="s3")
 s1.wait_for_connection()
 s2.wait_for_connection()
 s3.wait_for_connection()
-dual = DualSourceMotor("ims:dual", name="dual_source_motor")
+dual = DualSourceMotor("ims:", name="dual_source_motor")
 
 # x-ray generator
 cu_generator = XrayGenerator("source_cu:", name="cu_generator")
 mo_generator = XrayGenerator("source_mo:", name="mo_generator")
+
+det_stage = DetectorMotions("ims:", name="det_stage")

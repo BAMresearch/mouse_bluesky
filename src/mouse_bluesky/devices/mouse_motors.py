@@ -106,3 +106,17 @@ class BeamStop(Device):
 
     def move_in(self):
         return self.bsr.move(self.old_pos)
+
+
+class DetectorMotions(Device):
+
+    """
+    This device connects to the detector stage. Names are constructed by concatenation
+    """
+    def __init__(self,*args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    x = Cpt(EpicsMotor, "detx")
+    y = Cpt(EpicsMotor, "dety")
+    z = Cpt(EpicsMotor, "detz")
+

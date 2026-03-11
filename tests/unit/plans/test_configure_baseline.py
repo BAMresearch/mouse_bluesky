@@ -15,7 +15,7 @@ def _base_namespace(*, include_yz: bool = True, include_gi: bool = False, includ
     if include_yz:
         ns["sample_stage_yz"] = SimpleNamespace(y=object(), z=object())
     if include_gi:
-        ns["gi_stage"] = SimpleNamespace(x=object(), y=object())
+        ns["sample_stage_gi"] = SimpleNamespace(x=object(), y=object())
     if include_generators:
         ns["cu_generator"] = SimpleNamespace(voltage=object(), current=object())
         ns["mo_generator"] = SimpleNamespace(voltage=object(), current=object())
@@ -48,8 +48,8 @@ def test_build_baseline_signals_includes_base_optional_stages_and_generators():
         ns["s3"].right,
         ns["sample_stage_yz"].y,
         ns["sample_stage_yz"].z,
-        ns["gi_stage"].x,
-        ns["gi_stage"].y,
+        ns["sample_stage_gi"].x,
+        ns["sample_stage_gi"].y,
         ns["cu_generator"].voltage,
         ns["cu_generator"].current,
         ns["mo_generator"].voltage,
