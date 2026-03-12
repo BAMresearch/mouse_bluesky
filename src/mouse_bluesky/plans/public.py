@@ -26,6 +26,17 @@ def _get_ipython_user_ns() -> Mapping[str, object]:
     return getattr(shell, "user_ns", {})
 
 
+def _get_qserver_user_ns() -> Mapping[str, object]:
+    try:
+        from bluesky_queueserver.manager.profile_tools import global_user_namespace
+    except Exception:
+        return {}
+    user_ns = getattr(global_user_namespace, "user_ns", None)
+    if isinstance(user_ns, Mapping):
+        return user_ns
+    return {}
+
+
 def _resolve_optional_device(
     value: object | None,
     *,
@@ -34,10 +45,14 @@ def _resolve_optional_device(
 ) -> object:
     if value is not None:
         return value
-    ns = namespace if namespace is not None else _get_ipython_user_ns()
-    resolved = ns.get(name)
+    if namespace is not None:
+        resolved = namespace.get(name)
+    else:
+        resolved = _get_qserver_user_ns().get(name)
+        if resolved is None:
+            resolved = _get_ipython_user_ns().get(name)
     if resolved is None:
-        raise ValueError(f"No `{name}` was provided and none was found in the interactive namespace.")
+        raise ValueError(f"No `{name}` was provided and none was found in the available namespace.")
     return resolved
 
 
