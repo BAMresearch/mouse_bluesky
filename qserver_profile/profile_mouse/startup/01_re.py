@@ -6,9 +6,9 @@ from bluesky import RunEngine
 RE = RunEngine({})
 
 
-# Optional: print documents to console (useful in demo mode)
-def _print_doc(name, doc):
-    print(f"[RE] {name}: keys={list(doc)}")
+# # Optional: print documents to console (useful in demo mode)
+# def _print_doc(name, doc):
+#     print(f"[RE] {name}: keys={list(doc)}")
 
 
-RE.subscribe(_print_doc)
+# RE.subscribe(_print_doc)
