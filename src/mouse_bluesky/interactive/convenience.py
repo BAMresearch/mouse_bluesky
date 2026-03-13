@@ -11,7 +11,7 @@ from typing import Any
 import bluesky.plans as bp
 from bluesky import preprocessors as bpp
 
-from .exposure import configure_detectors_exposure
+from .exposure import DEFAULT_EIGER_OUTPUT_PATH, configure_detectors_exposure
 from .runtime import coerce_uid, resolve_default_detector, resolve_detector_field, resolve_run_engine
 
 
@@ -49,6 +49,7 @@ def _run_single_count(
     RE: Any,
     dets: list[Any],
     exposure_time: float,
+    output_path: Path | str = DEFAULT_EIGER_OUTPUT_PATH,
     md: Mapping[str, Any] | None,
 ) -> tuple[Any, _DocCollector]:
     collector = _DocCollector()
@@ -61,7 +62,7 @@ def _run_single_count(
         count_md.update(dict(md))
 
     plan = bp.count(dets, num=1, md=count_md)
-    plan = bpp.pchain(configure_detectors_exposure(dets, exposure_time), plan)
+    plan = bpp.pchain(configure_detectors_exposure(dets, exposure_time, output_path=output_path), plan)
     uid = coerce_uid(RE(plan, [collector]))
     return uid, collector
 
@@ -72,6 +73,7 @@ def ct(
     RE: Any | None = None,
     dets: Sequence[Any] | Any | None = None,
     detector_field: str | None = None,
+    output_path: Path | str = DEFAULT_EIGER_OUTPUT_PATH,
     md: Mapping[str, Any] | None = None,
 ) -> Any:
     """Run a quick one-shot exposure and return the measured detector counts."""
@@ -79,7 +81,13 @@ def ct(
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)
 
-    _, collector = _run_single_count(RE=resolved_RE, dets=detectors, exposure_time=seconds, md=md)
+    _, collector = _run_single_count(
+        RE=resolved_RE,
+        dets=detectors,
+        exposure_time=seconds,
+        output_path=output_path,
+        md=md,
+    )
     if collector.last_data is None or y_name not in collector.last_data:
         raise RuntimeError(f"Detector field {y_name!r} was not present in the collected count data.")
 
@@ -93,6 +101,7 @@ def test_measure(
     dets: Sequence[Any] | Any | None = None,
     detector_field: str | None = None,
     visualize: bool = False,
+    output_path: Path | str | None = None,
     md: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Collect one measurement, persist documents to a temporary file, and optionally plot."""
@@ -100,17 +109,26 @@ def test_measure(
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)
 
-    uid, collector = _run_single_count(RE=resolved_RE, dets=detectors, exposure_time=seconds, md=md)
+    temp_dir = Path(tempfile.mkdtemp(prefix="mouse_bluesky_test_measure_"))
+    detector_output_path = Path(output_path) if output_path is not None else temp_dir
+
+    uid, collector = _run_single_count(
+        RE=resolved_RE,
+        dets=detectors,
+        exposure_time=seconds,
+        output_path=detector_output_path,
+        md=md,
+    )
     if collector.last_data is None or y_name not in collector.last_data:
         raise RuntimeError(f"Detector field {y_name!r} was not present in the collected count data.")
 
-    temp_dir = Path(tempfile.mkdtemp(prefix="mouse_bluesky_test_measure_"))
     data_path = temp_dir / "measurement.json"
     payload = {
         "uid": uid,
         "seconds": seconds,
         "detector_field": y_name,
         "counts": collector.last_data[y_name],
+        "detector_output_path": str(detector_output_path),
         "last_data": collector.last_data,
         "documents": [{"name": name, "doc": doc} for name, doc in collector.docs],
     }

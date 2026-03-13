@@ -2,44 +2,26 @@
 
 from __future__ import annotations
 
-from typing import Any
+from pathlib import Path
 
-import bluesky.plan_stubs as bps
+from mouse_bluesky.devices.eiger import ad_configure_exposure
 
-# TODO: update if needed:
-EIGER_EXPOSURE_SIGNAL_PATH = "cam.acquire_time"
-EIGER_PERIOD_SIGNAL_PATH = "cam.acquire_period"
+DEFAULT_EIGER_OUTPUT_PATH = "/tmp/current/"
 
 
-def _resolve_signal(device: Any, dotted_name: str) -> Any:
-    """Resolve a dotted attribute path on a device."""
-    current = device
-    for part in dotted_name.split("."):
-        current = getattr(current, part)
-    return current
+def configure_detector_exposure(
+    detector: object, exposure_time: float, *, output_path: Path | str = DEFAULT_EIGER_OUTPUT_PATH
+):
+    """Configure Eiger detector exposure for interactive scans."""
+    yield from ad_configure_exposure(detector, exposure_time=exposure_time, output_path=output_path)
 
 
-def configure_detector_exposure(detector: Any, exposure_time: float):
-    """Yield plan messages that configure detector exposure for Eiger-like devices.
-
-    TODO: check the final IOC field names in the lab and update constants above.
-    """
-    try:
-        exposure_signal = _resolve_signal(detector, EIGER_EXPOSURE_SIGNAL_PATH)
-    except AttributeError:
-        return
-
-    yield from bps.mv(exposure_signal, exposure_time)
-
-    try:
-        period_signal = _resolve_signal(detector, EIGER_PERIOD_SIGNAL_PATH)
-    except AttributeError:
-        pass
-    else:
-        yield from bps.mv(period_signal, max(float(exposure_time), 0.0))
-
-
-def configure_detectors_exposure(detectors: list[Any], exposure_time: float):
-    """Configure exposure time for each detector when supported."""
+def configure_detectors_exposure(
+    detectors: list[object],
+    exposure_time: float,
+    *,
+    output_path: Path | str = DEFAULT_EIGER_OUTPUT_PATH,
+):
+    """Configure exposure time for each Eiger detector."""
     for detector in detectors:
-        yield from configure_detector_exposure(detector, exposure_time)
+        yield from configure_detector_exposure(detector, exposure_time, output_path=output_path)

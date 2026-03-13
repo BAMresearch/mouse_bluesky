@@ -5,9 +5,10 @@ from types import SimpleNamespace
 
 import numpy as np
 from bluesky import RunEngine
-from mouse_bluesky.interactive.scans import capillary_scan, edge_scan, peak_scan, valley_scan
 from ophyd import Signal
 from ophyd.sim import SynAxis, SynSignal
+
+from mouse_bluesky.interactive.scans import capillary_scan, edge_scan, peak_scan, valley_scan
 
 
 @dataclass
@@ -21,6 +22,8 @@ def _attach_exposure_signals(detector: SynSignal) -> SynSignal:
     detector.cam = SimpleNamespace(
         acquire_time=Signal(name=f"{detector.name}_acquire_time", value=0.1),
         acquire_period=Signal(name=f"{detector.name}_acquire_period", value=0.1),
+        num_images=Signal(name=f"{detector.name}_num_images", value=1),
+        file_path=Signal(name=f"{detector.name}_file_path", value=""),
     )
     return detector
 
@@ -80,7 +83,7 @@ def test_peak_scan_simulated_gaussian() -> None:
     )
     assert result.fit_center is not None
     assert abs(result.fit_center - 0.35) < 0.12
-    assert sim.detector.cam.acquire_time.get() == 0.0
+    assert sim.detector.cam.acquire_time.get() == 1.0
 
 
 def test_valley_scan_simulated_gaussian() -> None:
