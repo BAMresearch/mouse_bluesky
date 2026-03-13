@@ -167,3 +167,8 @@ mouse-bluesky enqueue /path/to/logbook.xlsx /path/to/projects --zmq tcp://127.0.
   --root-path /data/mouse --config-root /data/mouse_configs \
   --user mouse-bluesky --user-group primary
 ```
+
+  The CLI now normalizes Queue Server responses before reporting failures, so tuple-
+  shaped replies (e.g. `(success, message, traceback)`) or objects with `success`
+  attributes are handled gracefully and their messages are surfaced when requests
+  fail.
