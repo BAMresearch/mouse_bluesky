@@ -18,6 +18,7 @@ from .scheduler import schedule
 @attrs.frozen(slots=True)
 class QueueServerTarget:
     """Connection details for a Queue Server control endpoint."""
+
     zmq_control_addr: str = "tcp://127.0.0.1:60615"
     user: str = "mouse-bluesky"
     user_group: str = "primary"
@@ -80,10 +81,18 @@ def _queue_item_add_request(*, payload: Mapping[str, Any], zmq_control_addr: str
         )
 
 
-def populate_queue(specs: Sequence[PlanSpec], *, target: QueueServerTarget, position: str = "back") -> list[dict[str, Any]]:
-    """Push plan specs into Queue Server using `queue_item_add` in order."""
+def populate_queue(
+    specs: Sequence[PlanSpec], *, target: QueueServerTarget, position: str = "back"
+) -> list[dict[str, Any]]:
+    """Push plan specs into Queue Server using `queue_item_add`.
+
+    Queue Server inserts with ``pos="front"`` as stack-like prepends. To keep
+    the execution order equal to ``specs`` when targeting the front, submit
+    requests in reverse sequence.
+    """
+    enqueue_specs = reversed(specs) if position == "front" else specs
     responses: list[dict[str, Any]] = []
-    for spec in specs:
+    for spec in enqueue_specs:
         payload = {
             "item": spec.to_qs_item(),
             "pos": position,

@@ -177,6 +177,13 @@ def main(argv: list[str] | None = None) -> None:
     add_common(p_enq)
     p_enq.add_argument("--zmq", default="tcp://127.0.0.1:60615", help="Queue Server ZMQ control address")
     p_enq.add_argument("--position", default="back", choices=["front", "back"], help="Queue insertion position")
+    p_enq.add_argument(
+        "--prioritize",
+        action="store_const",
+        const="front",
+        dest="position",
+        help="Insert at queue front preserving spec order (enqueued in reverse under the hood)",
+    )
     p_enq.add_argument("--user", default="mouse-bluesky", help="Queue Server request user")
     p_enq.add_argument("--user-group", default="primary", help="Queue Server request user group")
     p_enq.set_defaults(func=_cmd_enqueue)

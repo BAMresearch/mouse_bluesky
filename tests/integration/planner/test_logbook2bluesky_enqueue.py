@@ -79,3 +79,40 @@ def test_build_and_populate_queue_calls_qs_api(monkeypatch: pytest.MonkeyPatch) 
         assert params["item"]["item_type"] == "plan"
         assert params["item"]["name"] == spec.name
         assert isinstance(params["item"]["kwargs"], dict)
+
+
+def test_populate_queue_front_reverses_submission_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    reg = build_default_registry()
+    e1 = FakeEntry(
+        row_index=1,
+        proposal="P",
+        sampleid=10,
+        sampos="A",
+        protocol="standard_measurements",
+        additional_parameters={"__json__": '{"configs":[102,101],"repeats":1,"collate":"ALLOW"}'},
+    )
+    e2 = FakeEntry(
+        row_index=2,
+        proposal="P",
+        sampleid=11,
+        sampos="B",
+        protocol="standard_measurements",
+        additional_parameters={"__json__": '{"configs":[101],"repeats":1,"collate":"ALLOW"}'},
+    )
+    specs = build_plan_specs([e1, e2], registry=reg)
+
+    calls = []
+
+    def fake_zmq_single_request(*, method, params, zmq_control_addr):  # noqa: ANN001
+        calls.append((method, params, zmq_control_addr))
+        return {"success": True, "method": method}
+
+    monkeypatch.setattr("mouse_bluesky.planner.logbook2bluesky.zmq_single_request", fake_zmq_single_request)
+
+    target = QueueServerTarget(zmq_control_addr="tcp://127.0.0.1:60615", user="tester", user_group="primary")
+    responses = populate_queue(specs, target=target, position="front")
+
+    assert len(responses) == len(specs)
+    called_names = [params["item"]["name"] for _, params, _ in calls]
+    assert called_names == [spec.name for spec in reversed(specs)]
+    assert all(params["pos"] == "front" for _, params, _ in calls)
