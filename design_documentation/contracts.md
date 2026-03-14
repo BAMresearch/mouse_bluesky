@@ -62,6 +62,16 @@ Duplicate signal objects are removed while preserving order.
 - Baseline: configured once at RE level; produces the `baseline` stream.
 - Snapshot: emitted per measurement run right before acquisition (stream `snapshot`).
 
+## Measurement defaults
+
+- `measure_yzstage` uses an impossible-date sentinel (`20261232`) when `ymd`
+  is omitted or `None`, instead of defaulting to the current date.
+- This is a safety measure to avoid writing ad hoc or underspecified runs into
+  an existing day-based data tree.
+- Source selection currently follows a legacy config-id rule:
+  - leading odd digit -> `cu_generator`
+  - leading even digit -> `mo_generator`
+
 ## Interactive scan call contract
 
 User-facing scan helpers support positional short forms:
