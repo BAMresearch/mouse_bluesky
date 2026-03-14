@@ -5,6 +5,9 @@ they can be handled incrementally without losing the current design context.
 
 ## 1) Measurement defaults and interactive safety
 
+Status:
+- done
+
 Area:
 - `src/mouse_bluesky/plans/public.py`
 - related tests under `tests/unit/plans/`
@@ -41,15 +44,21 @@ Questions to resolve:
 4. What is the supported namespace contract for interactive use:
    `shutter`, `cu_generator` / `mo_generator`, or both?
 
-Incremental path:
-1. Document the current behavior precisely in code and docs.
-2. Align unit tests with the intended current contract.
-3. Introduce clearer names or explicit parameters without changing runtime
-   semantics.
-4. Replace the legacy generator heuristic later, once config/source metadata is
+Completed in first pass:
+1. Documented the current behavior in code and design documentation.
+2. Replaced the magic `ymd` string with a named sentinel constant.
+3. Aligned unit tests with the intended current contract.
+
+Remaining follow-up:
+1. Decide whether to introduce an explicit source override parameter while
+   preserving legacy fallback behavior.
+2. Replace the legacy generator heuristic later, once config/source metadata is
    represented explicitly.
 
 ## 2) Broken pytest collection for integration convenience tests
+
+Status:
+- done
 
 Area:
 - `tests/integration/interactive_scans/test_convenience_sim.py`
@@ -63,10 +72,16 @@ Why this is an issue:
 - The documented test command is not reliable.
 - It hides later test failures because collection stops early.
 
-Incremental path:
-1. Decide whether `tests/` should be a package.
-2. Either add `__init__.py` files or switch the import to a non-relative form.
-3. Re-run the documented test command and keep it green.
+Completed:
+1. Made `tests/` and the affected integration directories into packages so the
+   relative import in `test_convenience_sim.py` resolves under `pytest`.
+2. Stopped exposing the imported `test_measure` helper under a top-level
+   `test_*` name in the test module, so `pytest` no longer mis-collects it as a
+   standalone test.
+
+Remaining follow-up:
+1. Keep the repository-level test command green as other failing items are
+   fixed.
 
 ## 3) Baseline tests have drifted away from the shipped startup namespace
 
