@@ -5,7 +5,8 @@ This document describes intended usage during development and beamtime.
 ## Roles & components
 
 - **Queue Server startup profile**:
-  - this repo includes a reference profile in `qserver_profile/startup`,
+  - this repo includes a reference profile in
+    `qserver_profile/profile_mouse/startup`,
   - production deployments may mirror/adapt this in an operations repo.
   - startup responsibilities:
     - instantiate devices (Eiger, motors, generators),

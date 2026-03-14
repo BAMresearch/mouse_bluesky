@@ -8,7 +8,8 @@ This repository implements:
 - A **logbook-driven planner** that compiles logbook entries into **Queue Server** plan items and pushes them via the Queue Server API.
 - **Static pre-validation** of the planned queue (plan names, config files, minimal HDF5 structure sanity checks).
 - **Interactive scan helpers** (`peak_scan`, `valley_scan`, `edge_scan`, `capillary_scan`) with live fitting.
-- A **reference Queue Server startup profile** under `qserver_profile/startup/`.
+- A **reference Queue Server startup profile** under
+  `qserver_profile/profile_mouse/startup/`.
 
 Production beamline deployment may still keep startup in a dedicated operations
 repository, but this repo now includes a working reference startup profile:

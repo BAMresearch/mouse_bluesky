@@ -51,7 +51,8 @@ Notes:
 Purpose: validate end-to-end queue population.
 
 1. Start Queue Server manager/worker using your beamline startup profile (recommended).
-   The reference profile in this repo is under `qserver_profile/startup/`:
+   The reference profile in this repo is under
+   `qserver_profile/profile_mouse/startup/`:
    - `00_plans.py`: exports public plans, standard Bluesky plans, and interactive scans.
    - `01_re.py`: RunEngine.
    - `02_tiledwriter.py`: optional TiledWriter subscription.

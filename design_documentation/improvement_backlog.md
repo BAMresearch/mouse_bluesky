@@ -85,6 +85,9 @@ Remaining follow-up:
 
 ## 3) Baseline tests have drifted away from the shipped startup namespace
 
+Status:
+- done
+
 Area:
 - `src/mouse_bluesky/plans/configure.py`
 - `qserver_profile/profile_mouse/startup/03_init_devices.py`
@@ -102,12 +105,17 @@ Why this is an issue:
   startup profile.
 - The tests are not protecting the actual runtime contract.
 
-Incremental path:
-1. Establish one shared fake namespace that mirrors the startup profile.
-2. Reuse it across baseline, config, and measurement tests.
-3. Keep the baseline contract documented in one place.
+Completed:
+1. Established one shared fake namespace that mirrors the shipped startup
+   profile.
+2. Reused it across baseline, config-application, and measurement-state tests.
+3. Updated the baseline expectations to the current `det_stage.*` contract and
+   restored a green test suite.
 
 ## 4) Dependency installation is tied to a moving Git branch
+
+Status:
+- done
 
 Area:
 - `pyproject.toml`
@@ -119,12 +127,19 @@ Why this is an issue:
 - Environments are not reproducible.
 - Fresh installs depend on network availability and upstream branch state.
 
-Incremental path:
-1. Pin a commit or release tag.
-2. Decide whether `mouse-logbook` belongs in base dependencies or in a CLI /
+Completed:
+1. Pinned `mouse-logbook` to the concrete Git commit currently installed in the
+   local development environment:
+   `5d04ff91793524a85344cdcc7b080099d787ae35`.
+
+Remaining follow-up:
+1. Decide whether `mouse-logbook` belongs in base dependencies or in a CLI /
    planner extra.
 
 ## 5) Documentation paths and examples have drifted from the repository layout
+
+Status:
+- done
 
 Area:
 - `README.md`
@@ -137,6 +152,9 @@ Summary:
 Why this is an issue:
 - New contributors can follow the docs and still land in the wrong place.
 
-Incremental path:
-1. Sweep the docs for stale paths.
-2. Keep examples aligned with the actual startup profile and test layout.
+Completed:
+1. Swept the docs for stale references to `qserver_profile/startup/` and the
+   old interactive test directories.
+2. Updated README, design docs, and the Queue Server demo example to point at
+   `qserver_profile/profile_mouse/startup/` and
+   `tests/*/interactive_scans/`.

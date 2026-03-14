@@ -2,57 +2,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import h5py
-from ophyd import Signal
-from ophyd.sim import SynAxis
 
 from mouse_bluesky.plans.im_craw import write_im_craw_nxs
 from mouse_bluesky.plans.public import measure_yzstage
-
-
-def _namespace_with_devices() -> dict[str, object]:
-    return {
-        "det_stage": SimpleNamespace(x=SynAxis(name="detx"), y=SynAxis(name="dety"), z=SynAxis(name="detz")),
-        "beam_stop": SimpleNamespace(
-            bsr=SynAxis(name="bsr"),
-            bsz=SynAxis(name="bsz"),
-            out_position=270.0,
-        ),
-        "dual": SimpleNamespace(dual=SynAxis(name="dual")),
-        "s1": SimpleNamespace(
-            top=SynAxis(name="s1top"),
-            bot=SynAxis(name="s1bot"),
-            left=SynAxis(name="s1hl"),
-            right=SynAxis(name="s1hr"),
-        ),
-        "s2": SimpleNamespace(
-            top=SynAxis(name="s2top"),
-            bot=SynAxis(name="s2bot"),
-            left=SynAxis(name="s2hl"),
-            right=SynAxis(name="s2hr"),
-        ),
-        "s3": SimpleNamespace(
-            top=SynAxis(name="s3top"),
-            bot=SynAxis(name="s3bot"),
-            left=SynAxis(name="s3hl"),
-            right=SynAxis(name="s3hr"),
-        ),
-        "sample_stage_yz": SimpleNamespace(y=SynAxis(name="ysam"), z=SynAxis(name="zsam")),
-        "eiger": object(),
-        "cu_generator": SimpleNamespace(
-            name="cu_generator",
-            shutter=Signal(name="shutter", value=0),
-            voltage=Signal(name="voltage", value=45.0),
-            current=Signal(name="current", value=24.5),
-        ),
-        "pressure_gauge": SimpleNamespace(pressure=Signal(name="pressure", value=1.2)),
-        "arduino": SimpleNamespace(
-            temperature_env=Signal(name="temperature_env", value=22.3),
-            temperature_stage=Signal(name="temperature_stage", value=26.7),
-        ),
-    }
+from tests.unit.plans.support import build_startup_namespace
 
 
 def _scalar(value):
@@ -64,7 +19,7 @@ def _scalar(value):
 
 
 def test_write_im_craw_nxs_writes_metadata_and_state(tmp_path: Path) -> None:
-    ns = _namespace_with_devices()
+    ns = build_startup_namespace(include_yz=True, include_generators=True, include_sensors=True)
     run_md = {
         "entry_row_index": 3,
         "proposal": "2026001",
@@ -106,7 +61,7 @@ def test_measure_yzstage_writes_im_craw_next_to_detector_data(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    ns = _namespace_with_devices()
+    ns = build_startup_namespace(include_yz=True, include_generators=True, include_sensors=True, include_eiger=True)
     destination = tmp_path / "20260311" / "batch005" / "007"
 
     def fake_allocate_sequence_dir(*, root: Path, ymd: str, batchnum: int) -> tuple[int, Path]:

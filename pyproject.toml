@@ -20,7 +20,7 @@ dependencies = [
   "h5py>=3.8",
   "ophyd>=1.7",
   "lmfit>=1.3.4",
-  "mouse-logbook @ git+https://github.com/BAMresearch/mouse_logbook.git@main",
+  "mouse-logbook @ git+https://github.com/BAMresearch/mouse_logbook.git@5d04ff91793524a85344cdcc7b080099d787ae35",
 ]
 
 [project.optional-dependencies]
@@ -47,7 +47,7 @@ demo = [
 mouse-bluesky = "mouse_bluesky.cli:main"
 
 [tool.ruff]
-line-length = 120 
+line-length = 120
 lint.select = ["E", "F", "W", "B", "C90", "I"]
 lint.ignore = ["E203", "E266", "E501", "F403", "F401", "F405", "F821"]
 lint.mccabe.max-complexity = 18

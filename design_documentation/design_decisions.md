@@ -69,7 +69,7 @@ this repo also ships a reference Queue Server startup profile. It provides:
 - planner,
 - validators,
 - protocol registry,
-- reference startup scripts in `qserver_profile/startup`.
+- reference startup scripts in `qserver_profile/profile_mouse/startup`.
 
 **Rationale:** separation of concerns; avoids coupling to a specific deployment environment.
 

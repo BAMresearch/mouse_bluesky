@@ -48,15 +48,15 @@ pytest
 - `design_documentation/contracts.md`
 - `design_documentation/testing.md`
 
-## Beamline deployment (separate repo)
+## Beamline deployment
 
-This package intentionally does **not** include:
-- RunEngine creation and baseline config,
-- device instantiation,
-- Queue Server startup,
-- TiledWriter configuration.
+The core library remains deployment-agnostic, but this repository also ships a
+reference Queue Server startup profile under
+`qserver_profile/profile_mouse/startup/`.
 
-Those belong in the beamline startup/profile repository.
+Production beamlines may still keep their operational startup in a separate
+repository. In that case, this repo remains the source for plans, planner
+logic, and a working reference profile.
 
 ## mouse_bluesky interactive scans
 
@@ -90,8 +90,8 @@ res_edge = edge_scan(motor, -0.5, 0.5, 41, 0.2)
 ### Contents
 
 - `src/mouse_bluesky/interactive/`
-- `tests/unit/interactive/`
-- `tests/integration/interactive/`
+- `tests/unit/interactive_scans/`
+- `tests/integration/interactive_scans/`
 
 ### Defaults
 
@@ -132,7 +132,7 @@ For capillary scans, center is the fitted `mid_center` and width is
 
 Interactive scans are imported in Queue Server startup:
 
-- `qserver_profile/startup/00_plans.py`
+- `qserver_profile/profile_mouse/startup/00_plans.py`
 
 This makes them available in both queue operations and interactive console sessions.
 

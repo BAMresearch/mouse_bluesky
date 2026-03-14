@@ -13,7 +13,7 @@ It is safe to run on a laptop with no EPICS/hardware connected.
 
 Ensure the file exists:
 
-- `qserver_profile/startup/00_sim.py`
+- `qserver_profile/profile_mouse/startup/00_sim.py`
 
 It should define the demo plans:
 - `sim_count`
@@ -28,7 +28,7 @@ Create 01_re.py that defines RE = RunEngine({})
 In terminal A (repo root):
 
 ```bash
-start-re-manager --startup-dir ./qserver_profile/startup
+start-re-manager --startup-dir ./qserver_profile/profile_mouse/startup
 ````
 
 Notes:
