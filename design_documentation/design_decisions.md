@@ -38,13 +38,13 @@ Example: `FORBID, ALLOW×5, FORBID, ALLOW×4`
 - restartability (resume after failures),
 - easier data QA and audit.
 
-## 5) Configuration application only on change
+## 5) Configuration application before every measurement
 
-**Decision:** Insert `apply_config(config_id)` only when the planned sequence changes configuration.
+**Decision:** Insert `apply_config(config_id)` immediately before every queued measurement.
 
-**Rationale:** Minimizes time wasted on redundant configuration sets while keeping behavior explicit and reproducible.
+**Rationale:** Queue execution can be interrupted and priority measurements can be inserted at the front. Re-applying the requested configuration before each measurement keeps resumed queue execution reproducible without relying on the worker's current machine state.
 
-**Recommended guard:** optionally check an instrument “current config id” PV inside `measure_yzstage` (or before it) to fail fast if queue edits start mid-configuration.
+**Operational note:** redundant `apply_config` calls are expected to be cheap because unchanged motors should remain at or near their target positions.
 
 ## 6) Snapshot before every measurement as a stream, not a separate run
 

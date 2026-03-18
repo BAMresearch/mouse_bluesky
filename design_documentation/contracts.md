@@ -31,7 +31,7 @@ Input:
 - scheduled `QueuePlan` list
 
 Output:
-- new list with `apply_config(config_id)` inserted only when config_id changes
+- new list with `apply_config(config_id)` inserted before each measurement carrying a `config_id`
 
 Rule:
 - `config_id` may be sourced from `plan.meta["config_id"]` or `plan.parameters["config_id"]`

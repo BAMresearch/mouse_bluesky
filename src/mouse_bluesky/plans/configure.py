@@ -263,6 +263,7 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
     """Apply a machine configuration from ``{config_root}/{config_id}.nxs``.
 
     The plan:
+    0. Opens a lightweight audit run so configuration applications appear in Tiled.
     1. Loads scalar setpoints from the NeXus file using the HDF5->Ophyd maps.
     2. Resolves mapped dotted names (for example ``"s1.top"``) to live Ophyd
        objects, optionally using ``namespace`` as the root lookup source.
@@ -278,39 +279,53 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
         NameError: If a mapped device root name cannot be resolved.
     """
     config_file_path = Path(config_root) / f"{config_id}.nxs"
-    if not config_file_path.exists():
-        raise FileNotFoundError(f"Config file not found: {config_file_path}")
-    with h5py.File(config_file_path, "r") as f:
-        # check that all expected devices are present in the file
-        for hdf5_path in HDF5_OPHYD_MAP_BASE:
-            if hdf5_path not in f:
-                raise KeyError(f"Expected config dataset not found: {hdf5_path} from BASE map")
-        ophyd_map = _select_apply_ophyd_map(f)
+    run_md = {
+        "activity": "apply_config",
+        "config_id": int(config_id),
+        "config_root": Path(config_root).as_posix(),
+        "config_file": config_file_path.as_posix(),
+    }
 
-        # resolve ophyd objects and read values from the file
-        resolved = {
-            hdf5_path: _resolve_dotted_name(signal_name, namespace=namespace)
-            for hdf5_path, signal_name in ophyd_map.items()
-        }
-        values = {hdf5_path: float(f[hdf5_path][()]) for hdf5_path in ophyd_map}
+    yield from bps.open_run(md=run_md)
+    try:
+        if not config_file_path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_file_path}")
+        with h5py.File(config_file_path, "r") as f:
+            # check that all expected devices are present in the file
+            for hdf5_path in HDF5_OPHYD_MAP_BASE:
+                if hdf5_path not in f:
+                    raise KeyError(f"Expected config dataset not found: {hdf5_path} from BASE map")
+            ophyd_map = _select_apply_ophyd_map(f)
 
-    moved_paths: set[str] = set()
-    for group in MOVE_IN_GROUPS:
-        if not all(path in resolved for path in group):
-            # print an error message:
-            missing = [path for path in group if path not in resolved]
-            print(f"Warning: skipping move group {group} due to missing paths: {missing}")
-            continue
-        move_args = []
-        for path in group:
-            move_args.extend([resolved[path], values[path]])
-        yield from bps.mv(*move_args)
-        moved_paths.update(group)
+            # resolve ophyd objects and read values from the file
+            resolved = {
+                hdf5_path: _resolve_dotted_name(signal_name, namespace=namespace)
+                for hdf5_path, signal_name in ophyd_map.items()
+            }
+            values = {hdf5_path: float(f[hdf5_path][()]) for hdf5_path in ophyd_map}
 
-    for hdf5_path, signal in resolved.items():
-        if hdf5_path in moved_paths:
-            continue
-        yield from bps.mv(signal, values[hdf5_path])
+        moved_paths: set[str] = set()
+        for group in MOVE_IN_GROUPS:
+            if not all(path in resolved for path in group):
+                # print an error message:
+                missing = [path for path in group if path not in resolved]
+                print(f"Warning: skipping move group {group} due to missing paths: {missing}")
+                continue
+            move_args = []
+            for path in group:
+                move_args.extend([resolved[path], values[path]])
+            yield from bps.mv(*move_args)
+            moved_paths.update(group)
+
+        for hdf5_path, signal in resolved.items():
+            if hdf5_path in moved_paths:
+                continue
+            yield from bps.mv(signal, values[hdf5_path])
+    except Exception as exc:
+        yield from bps.close_run(exit_status="fail", reason=str(exc))
+        raise
+    else:
+        yield from bps.close_run()
 
 
 def save_config(*, config_id: int, config_root: str, namespace: Mapping[str, object] | None = None) -> Iterator:

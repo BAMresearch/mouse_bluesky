@@ -12,7 +12,7 @@ Logbook-driven planning and Bluesky plans for MOUSE. This repository provides:
 - **Single-plan protocols**: queued as one Queue Server item; runnable interactively.
 - **Generator protocols**: compile to many measurement runs; reorderable within contiguous `collate=ALLOW` blocks.
 - **One measurement = one run** persisted to Tiled.
-- **apply_config only on change**: planner inserts config changes as needed.
+- **apply_config before every measurement**: planner re-applies the requested config ahead of each `measure_yzstage` run.
 - **Debug snapshot per measurement**: emitted inside each measurement run (stream `snapshot`). Baseline is configured at the RunEngine level.
 
 ## Directory layout (expected)

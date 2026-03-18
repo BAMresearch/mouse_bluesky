@@ -48,11 +48,19 @@ def test_build_and_populate_queue_calls_qs_api(monkeypatch: pytest.MonkeyPatch) 
 
     specs = build_plan_specs([e1, e2], registry=reg)
 
-    # apply_config should be inserted when config changes along scheduled order.
-    # Collation should group all 101 measurements before 102.
+    # Collation should group all 101 measurements before 102, and every
+    # measurement should be preceded by apply_config.
     names = [s.name for s in specs]
-    assert "apply_config" in names
-    assert "measure_yzstage" in names
+    assert names == [
+        "apply_config",
+        "measure_yzstage",
+        "apply_config",
+        "measure_yzstage",
+        "apply_config",
+        "measure_yzstage",
+    ]
+    apply_cfgs = [s.kwargs["config_id"] for s in specs if s.name == "apply_config"]
+    assert apply_cfgs == [101, 101, 102]
 
     # Mock Queue Server API call
     calls = []

@@ -20,8 +20,8 @@ Focus on deterministic, hardware-free tests:
   - overall segment order preserved
 
 - Config insertion:
-  - inserts `apply_config` only when config changes
-  - does not duplicate if repeated config IDs
+  - inserts `apply_config` before every measurement
+  - preserves the scheduled measurement order
 
 - Static validation:
   - missing config files

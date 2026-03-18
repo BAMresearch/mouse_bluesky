@@ -8,7 +8,7 @@ import attrs
 from bluesky_queueserver.manager.comms import zmq_single_request
 
 from ..protocols.registry import LogbookEntryLike, ProtocolRegistry
-from .config_insertion import insert_apply_config_on_change
+from .config_insertion import insert_apply_config_before_measurements
 from .logbook_integration import iter_mouse_logbook_entries
 from .models import CompiledEntry, PlanSpec
 from .params import parse_additional_parameters
@@ -41,10 +41,10 @@ def build_plan_specs(
     apply_config_extra_kwargs: Mapping[str, Any] | None = None,
     measurement_extra_kwargs: Mapping[str, Any] | None = None,
 ) -> list[PlanSpec]:
-    """Build queue-ready plan specs from entries with scheduling and config insertion."""
+    """Build queue-ready plan specs from entries with scheduling and per-measurement config insertion."""
     compiled = compile_entries(entries, registry=registry)
     ordered = schedule(compiled)
-    with_configs = insert_apply_config_on_change(
+    with_configs = insert_apply_config_before_measurements(
         ordered,
         extra_apply_kwargs=dict(apply_config_extra_kwargs or {}),
     )

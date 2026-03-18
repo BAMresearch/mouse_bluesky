@@ -35,7 +35,7 @@ Each entry includes:
 - load logbook entries into `Logbook2MouseEntry` objects
 - build a protocol registry (e.g., `build_default_registry()`)
 - compile entries → scheduled plan items (QueuePlan list)
-- insert `apply_config` on config changes
+- insert `apply_config` before every measurement
 
 ### 3) Pre-validate (static)
 

@@ -28,7 +28,7 @@ flowchart LR
   C --> D[Protocol.compile(entry, params)]
   D --> E[CompiledEntry: collate policy + QueuePlan list]
   E --> F[Segment Scheduler<br/>collate ALLOW blocks only]
-  F --> G[Insert apply_config on config changes]
+  F --> G[Insert apply_config before every measurement]
   G --> H[Static validation (optional)]
   H --> I[Queue population via QS API<br/>queue_item_add]
   I --> J[Queue Server executes plans]
@@ -57,7 +57,7 @@ flowchart LR
     - `collate=FORBID` creates a barrier.
     - `collate=ALLOW` entries are collated only within their contiguous block.
 - `mouse_bluesky.planner.config_insertion`
-  - Inserts `apply_config(config_id)` only when the configuration changes.
+  - Inserts `apply_config(config_id)` before every `measure_yzstage`.
 - `mouse_bluesky.planner.validate`
   - Static checks: known plan names, config files exist, `/saxs/Saxslab` group exists, scalar datasets.
 - `mouse_bluesky.planner.logbook2bluesky`
