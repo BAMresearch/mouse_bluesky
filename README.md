@@ -136,6 +136,40 @@ Interactive scans are imported in Queue Server startup:
 
 This makes them available in both queue operations and interactive console sessions.
 
+## XArm 850 device
+
+`mouse_bluesky.devices.xarm.XArm850` provides a non-EPICS ophyd wrapper around
+the xArm Python SDK for Cartesian pose moves (x, y, z, roll, pitch, yaw),
+including a stop path for collision-risk interruption.
+
+```python
+from mouse_bluesky.devices.xarm import XArm850
+
+# Real hardware via SDK:
+robot = XArm850(name="xarm850", host="192.168.1.240")
+
+robot.set_target(x=350, y=0, z=250, roll=180, pitch=0, yaw=90)
+st = robot.move_to_target(wait=False)
+
+# Abort immediately if needed:
+robot.stop()
+
+# Unit-aware API via Pint:
+from pint import UnitRegistry
+ureg = UnitRegistry()
+robot.set_target(
+    x=0.35 * ureg.meter,
+    y=0.0 * ureg.meter,
+    z=0.25 * ureg.meter,
+    roll=3.14159 * ureg.radian,
+    pitch=0.0 * ureg.degree,
+    yaw=1.5708 * ureg.radian,
+)
+```
+
+`set(...)`/`move_to(...)` also accept tuples or mappings for one-shot moves.
+The device implements `set`, `check_value`, `locate`, `stop`, `pause`, and
+`resume` so it behaves well with standard Bluesky plans.
 
 ## License
 
