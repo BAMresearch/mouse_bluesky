@@ -7,7 +7,6 @@ from bluesky.callbacks.mpl_plotting import (
 )
 from bluesky.preprocessors import run_decorator
 
-from mouse_bluesky.devices import eiger
 from mouse_bluesky.devices.eiger import ad_configure_exposure
 
 if "bec" not in globals():
