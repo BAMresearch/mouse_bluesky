@@ -7,6 +7,7 @@ from bluesky.callbacks.mpl_plotting import (
 )
 from bluesky.preprocessors import run_decorator
 
+from mouse_bluesky.devices import eiger
 from mouse_bluesky.devices.eiger import ad_configure_exposure
 
 if "bec" not in globals():
@@ -66,13 +67,13 @@ gap_fit_params = gap_fit_model.make_params(
 def reset_roistat_area():
     """Reset the roistat area of the Eiger detector."""
     yield from bps.mv(
-        eiger.roistat_1_1.min_.x,
+        eiger.roistat1_1.min_.x,
         200,
-        eiger.roistat_1_1.min_.y,
+        eiger.roistat1_1.min_.y,
         200,
-        eiger.roistat_1_1.size.x,
+        eiger.roistat1_1.size.x,
         800,
-        eiger.roistat_1_1.size.y,
+        eiger.roistat1_1.size.y,
         800,
     )  # reset the roistat area to the full detector area.
 
