@@ -62,7 +62,8 @@ def test_measure_yzstage_writes_im_craw_next_to_detector_data(
     monkeypatch,
 ) -> None:
     ns = build_startup_namespace(include_yz=True, include_generators=True, include_sensors=True, include_eiger=True)
-    destination = tmp_path / "20260311" / "batch005" / "007"
+    daily_dir = tmp_path / "2026" / "20260311"
+    destination = daily_dir / "20260311_5_7"
 
     def fake_allocate_sequence_dir(*, root: Path, ymd: str, batchnum: int) -> tuple[int, Path]:
         assert root == tmp_path
@@ -100,6 +101,8 @@ def test_measure_yzstage_writes_im_craw_next_to_detector_data(
     assert sample_out.exists()
     assert beam_profile_out.exists()
     assert beam_profile_through_sample_out.exists()
+    assert (destination / "COMPLETE").read_text(encoding="utf-8") == "ok\n"
+    assert not (daily_dir / "COMPLETE").exists()
 
     with h5py.File(sample_out, "r") as f:
         assert _scalar(f["/entry1/experiment/entry_row_index"][()]) == 9

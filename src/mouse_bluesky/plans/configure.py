@@ -187,6 +187,23 @@ def _readback_value(signal: object) -> float:
     raise TypeError(f"Cannot read value from signal object: {signal!r}")
 
 
+def _move_required(signal: object, target: float) -> bool:
+    try:
+        current = _readback_value(signal)
+    except Exception:
+        return True
+
+    retry_deadband = getattr(signal, "retry_deadband", None)
+    if retry_deadband is None:
+        return current != target
+
+    try:
+        deadband = abs(float(retry_deadband.get()))
+    except Exception:
+        return True
+    return abs(current - target) > deadband
+
+
 def _try_resolve_dotted_name(name: str, *, namespace: Mapping[str, object] | None = None) -> object | None:
     try:
         return _resolve_dotted_name(name, namespace=namespace)
@@ -313,14 +330,17 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
                 continue
             move_args = []
             for path in group:
-                move_args.extend([resolved[path], values[path]])
-            yield from bps.mv(*move_args)
+                if _move_required(resolved[path], values[path]):
+                    move_args.extend([resolved[path], values[path]])
+            if move_args:
+                yield from bps.mv(*move_args)
             moved_paths.update(group)
 
         for hdf5_path, signal in resolved.items():
             if hdf5_path in moved_paths:
                 continue
-            yield from bps.mv(signal, values[hdf5_path])
+            if _move_required(signal, values[hdf5_path]):
+                yield from bps.mv(signal, values[hdf5_path])
     except Exception as exc:
         yield from bps.close_run(exit_status="fail", reason=str(exc))
         raise

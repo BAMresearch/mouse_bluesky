@@ -13,6 +13,7 @@ def allocate_sequence_dir(*, root: Path, ymd: str, batchnum: int) -> tuple[int, 
     """
     base = root / ymd[:4] / ymd
     base.mkdir(parents=True, exist_ok=True)
+    (base / ".keep").touch()
 
     prefix = f"{ymd}_{batchnum}_"
     for seq in range(
