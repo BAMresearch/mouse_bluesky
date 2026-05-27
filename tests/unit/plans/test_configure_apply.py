@@ -114,6 +114,27 @@ def test_apply_config_moves_motors_outside_retry_deadband():
     )
 
 
+def test_apply_config_skips_dual_inside_retry_deadband():
+    namespace, axes = _build_counting_namespace(offsets={"/saxs/Saxslab/dual": 0.05})
+    RE = RunEngine({})
+
+    RE(apply_config(config_id=123, config_root=CONFIG_ROOT.as_posix(), namespace=namespace))
+
+    assert axes["/saxs/Saxslab/dual"].set_count == 0
+
+
+def test_apply_config_moves_dual_outside_retry_deadband():
+    namespace, axes = _build_counting_namespace(offsets={"/saxs/Saxslab/dual": 0.2})
+    RE = RunEngine({})
+
+    RE(apply_config(config_id=123, config_root=CONFIG_ROOT.as_posix(), namespace=namespace))
+
+    assert axes["/saxs/Saxslab/dual"].set_count == 1
+    assert {path: axis.set_count for path, axis in axes.items() if path != "/saxs/Saxslab/dual"} == dict.fromkeys(
+        (path for path in axes if path != "/saxs/Saxslab/dual"), 0
+    )
+
+
 def test_apply_config_emits_failed_run_documents_when_config_is_missing(tmp_path: Path):
     namespace = build_startup_namespace(include_yz=True, include_generators=False)
     RE = RunEngine({})
