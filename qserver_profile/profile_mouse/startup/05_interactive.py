@@ -5,6 +5,9 @@ from bluesky.callbacks.mpl_plotting import (
     LivePlot,  # yet another one of the magic plotters.
     LiveScatter,  # yet another one of the magic plotters.
 )
+from bluesky.preprocessors import run_decorator
+
+from mouse_bluesky.devices.eiger import ad_configure_exposure
 
 if "bec" not in globals():
     bec = BestEffortCallback()
@@ -54,6 +57,36 @@ gap_fit_params = gap_fit_model.make_params(
         value=1, expr="-amplitude"
     ),  # the intercept of the line. we will fit this parameter to find the background level.
 )  # this is a container for the parameters of the model, which we will use to fit our data.
+
+# RE(ad_configure_exposure(eiger, exposure_time=1, output_path="tmp/scans"))  # set the exposure time of the detector to 0.1 seconds for interactive scans.
+# define a bluesky plan to reset the detector roistat area
+
+
+@run_decorator()
+def reset_roistat_area():
+    """Reset the roistat area of the Eiger detector."""
+    yield from bps.mv(
+        eiger.roistat_1_1.min_.x,
+        200,
+        eiger.roistat_1_1.min_.y,
+        200,
+        eiger.roistat_1_1.size.x,
+        800,
+        eiger.roistat_1_1.size.y,
+        800,
+    )  # reset the roistat area to the full detector area.
+
+
+@run_decorator()
+def open_shutter():
+    """Open the shutter of the x-ray generator."""
+    yield from bps.mv(cu_generator.shutter, 1)  # open the shutter of the x-ray generator.
+
+
+@run_decorator()
+def close_shutter():
+    """Close the shutter of the x-ray generator."""
+    yield from bps.mv(cu_generator.shutter, 0)  # close the shutter of the x-ray generator.
 
 
 # define a step scan and a gap scan.
