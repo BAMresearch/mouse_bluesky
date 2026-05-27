@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 
+from bluesky.callbacks.buffer import BufferingWrapper
 from bluesky.callbacks.tiled_writer import TiledWriter
 from tiled.client import from_uri
 
@@ -23,5 +24,8 @@ if not uri:
 else:
     # from_uri reads TILED_API_KEY automatically if set (recommended).
     tiled_client = from_uri(uri, api_key=key)
-    RE.subscribe(TiledWriter(tiled_client, batch_size=1))  # noqa: F821
+    tw = BufferingWrapper(
+        TiledWriter(tiled_client, batch_size=1, backup_directory="/home/ws8665-epics/data/tiled_backup_buffer")
+    )  # wrap TiledWriter in a BufferingWrapper to ensure that documents are not lost if the Tiled server is temporarily unavailable. Adjust batch_size and backup_directory as needed.
+    RE.subscribe(tw)  # noqa: F821
     print(f"[startup] TiledWriter subscribed (TILED_URI={uri})")
