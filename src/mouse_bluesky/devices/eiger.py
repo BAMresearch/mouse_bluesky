@@ -40,6 +40,19 @@ def ad_setup(det):
     det.roi1.nd_array_port.put("EIG")  # connect to the main ADEiger NDArray port
     det.roistat1.nd_array_port.put("EIG")  # ibid.
     det.stats1.nd_array_port.put("EIG")  # ibid.
+    det.cam.fw_enable.put(1)
+    det.cam.fw_name_pattern.put("eiger_$id")
+    det.cam.fw_autoremove.put(1)
+    det.cam.data_source.put("FileWriter")
+    det.cam.save_files.put(1)
+    det.cam.file_perms.put(422)
+    det.roistat1.enable.put(1)
+    det.roistat1_1.use.put(1)
+    det.roistat1_1.name_.put("direct beam")
+    det.roistat1_1.min_.x.put(400)
+    det.roistat1_1.min_.y.put(300)
+    det.roistat1_1.size.x.put(200)
+    det.roistat1_1.size.y.put(200)
     det.missing_plugins()
 
     # start the AD IOC and run the magic "test_capture_eiger.sh" script on the server

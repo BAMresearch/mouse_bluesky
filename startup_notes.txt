@@ -1,5 +1,10 @@
 . .venv/bin/activate
-start-re-manager --ipython-dir ./qserver_profile --startup-profile mouse --use-ipython-kernel ON
+# start-re-manager --ipython-dir ./qserver_profile --startup-profile mouse --use-ipython-kernel ON
+# in a separate screen:
+start-re-manager --ipython-dir ./qserver_profile --startup-profile mouse --use-ipython-kernel ON --ipython-matplotlib qt6
+
+# for the web monitor: 
+python -m bluesky_web_plots --zmq-uri localhost:60615 --timeline-config src/bluesky_web_plots/configs/example_config.json --tiled-uri $TILED_URI --tiled-api-key $TILED_API_KEY
 
 sudo apt install redis
 
