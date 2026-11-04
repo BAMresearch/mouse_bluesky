@@ -10,6 +10,7 @@ from bluesky import preprocessors as bpp
 from bluesky.utils import RunEngineControlException
 
 from .public import _resolve_optional_device
+from .shutter import SHUTTER_CLOSE_TIMEOUT_S, close_shutter_best_effort
 
 DETECTOR_PARK_POSITION = 400
 EVACUATE_TARGET_PRESSURE = 1
@@ -21,7 +22,6 @@ VENTILATE_POLL_INTERVAL_S = 1.0
 VENTILATE_PUMP_OFF_DELAY_S = 1.0
 VENTILATE_HOLD_S = 10.0
 SIGNAL_SET_TIMEOUT_S = 30
-SHUTTER_CLOSE_TIMEOUT_S = 5
 OUTPUT_OFF = 0
 OUTPUT_ON = 1
 
@@ -60,7 +60,7 @@ def _preflight(namespace):
 def _close_shutter(generator, name):
     try:
         shutter = generator.shutter
-        yield from bps.abs_set(shutter, OUTPUT_OFF, wait=True, timeout=SHUTTER_CLOSE_TIMEOUT_S)
+        yield from close_shutter_best_effort(shutter, name, timeout_s=SHUTTER_CLOSE_TIMEOUT_S)
     except RunEngineControlException:
         raise
     except Exception as exc:

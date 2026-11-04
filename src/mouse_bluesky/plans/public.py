@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Mapping
 
-from bluesky import plan_stubs as bps
+from bluesky import preprocessors as bpp
 
 from mouse_bluesky.devices.eiger import ad_configure_energy
 from mouse_bluesky.settings import Settings
@@ -97,6 +97,13 @@ def measure_yzstage(
     selection currently follows the legacy config-id convention implemented by
     `source_settings_for_config_id`. Detector energies are verified before
     allocating a sequence directory or opening the shutter.
+
+    After an attempted shutter open, exceptions, abort and stop send one
+    best-effort close without moving any motor. Exceptions record ``fail``
+    with their reason, abort records ``abort``, and stop records ``success``.
+    Only normal completion strictly closes the shutter and writes ``COMPLETE``.
+    Pausing leaves the shutter open; halt, worker crash or power loss skips
+    cleanup. A failed best-effort close warns that the shutter is unconfirmed.
     """
     if root_path is None:
         root_path = Settings.from_env().root_path.as_posix()
@@ -138,8 +145,7 @@ def measure_yzstage(
         }
     )
 
-    yield from bps.open_run(md=run_md)
-    try:
+    def body():
         # Baseline should be configured on the RunEngine via SupplementalData.
         # Snapshot stream just before acquisition:
         if snapshot_signals:
@@ -160,5 +166,5 @@ def measure_yzstage(
 
         # Optional: mark success
         (destination / "COMPLETE").write_text("ok\n", encoding="utf-8")
-    finally:
-        yield from bps.close_run()
+
+    yield from bpp.run_wrapper(body(), md=run_md)

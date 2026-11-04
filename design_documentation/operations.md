@@ -124,7 +124,32 @@ connection changes.
 Motors, `pressure_gauge` and `arduino` remain strict: a read failure still fails
 the run. This tolerance applies only to baseline recording. An offline active
 source still stops a measurement because its shutter and the voltage/current
-reads in `write_im_craw_nxs` remain strict.
+reads in `write_im_craw_nxs` remain strict; the run is recorded as `fail`.
+
+### Measurement failures and interruption
+
+| Exit route | Shutter | `exit_status` | `COMPLETE` file |
+|---|---|---|---|
+| Success | Strict close, with no extra command | `success` | Written |
+| Exception after the shutter open was attempted | One best-effort close | `fail`, with the reason | Not written |
+| Abort | One best-effort close | `abort` | Not written |
+| Stop | One best-effort close | `success` (Bluesky convention) | Not written |
+| Halt | Not closed: Bluesky skips cleanup | `abort` | Not written |
+
+A stopped measurement is recorded as `success`, so a missing `COMPLETE` file
+shows that it did not finish. An energy configuration failure or `open_run`
+failure sends no shutter close because the shutter open was never attempted.
+If the strict close on the normal path fails, the measurement fails and sends
+one best-effort retry. The original exception still reaches the caller even
+if that retry fails.
+
+The best-effort close waits up to 5 s. A warning means the shutter state is
+unconfirmed, and safety relies on the interlocks. No motor moves are added on
+failure: by maintainer decision, the beam stop stays where it was because the
+detector tolerates the lab flux indefinitely.
+
+Halt skips the close, and the shutter stays open while the RunEngine is paused.
+A worker crash or power loss cannot run any cleanup.
 
 ### Snapshot stream
 

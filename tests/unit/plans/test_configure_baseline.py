@@ -357,7 +357,8 @@ def test_active_mo_measurement_stays_strict_with_tolerant_baseline(baseline_run,
     with pytest.raises(DisconnectedError, match=failed_signal.name):
         RE(measure_yzstage(config_id=223, root_path=tmp_path.as_posix(), namespace=ns))
 
-    assert ns["mo_generator"].shutter.set_attempts == [1]
+    assert ns["mo_generator"].shutter.set_attempts == [1, 0]
+    assert [doc["exit_status"] for name, doc in docs if name == "stop"] == ["fail"]
     assert len(_baseline_events(docs)) == 2
     assert not list(tmp_path.rglob("COMPLETE"))
 
