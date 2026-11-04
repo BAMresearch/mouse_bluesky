@@ -113,6 +113,19 @@ Included baseline signals cover:
 - optional YZ and GI stage motors when present,
 - generator voltage/current readbacks.
 
+Only the generator voltage/current signals in `GENERATOR_BASELINE_SIGNALS`
+are wrapped for optional baseline reads. If a generator IOC is offline when a
+run opens or crashes during the run, its unavailable baseline values are
+recorded as NaN with a warning naming the signal; the run continues. NaN here
+means the readback was unavailable. Disconnected signals are not read, avoiding
+a connection timeout, and their baseline descriptions stay the same across
+connection changes.
+
+Motors, `pressure_gauge` and `arduino` remain strict: a read failure still fails
+the run. This tolerance applies only to baseline recording. An offline active
+source still stops a measurement because its shutter and the voltage/current
+reads in `write_im_craw_nxs` remain strict.
+
 ### Snapshot stream
 
 `measure_yzstage` emits a `snapshot` stream inside the run immediately before measurement.

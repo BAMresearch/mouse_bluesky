@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+import math
+import time
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 from types import MappingProxyType
@@ -215,13 +217,47 @@ def _try_resolve_dotted_name(name: str, *, namespace: Mapping[str, object] | Non
         return None
 
 
+class OptionalBaselineSignal:
+    """Record unavailable generator readbacks as NaN without blocking a run."""
+
+    def __init__(self, signal):
+        self.signal = signal
+        self.name = signal.name
+        self.parent = None
+        self._source = f"PV:{getattr(signal, 'pvname', self.name)}"
+
+    def read(self):
+        try:
+            if self.signal.connected:
+                return self.signal.read()
+        except Exception as exc:
+            print(f"Warning: could not read baseline signal {self.name}: {exc}")
+        else:
+            print(f"Warning: baseline signal {self.name} is disconnected")
+        return {self.name: {"value": math.nan, "timestamp": time.time()}}
+
+    def describe(self):
+        return {self.name: {"source": self._source, "dtype": "number", "shape": []}}
+
+    def read_configuration(self):
+        return {}
+
+    def describe_configuration(self):
+        return {}
+
+    @property
+    def hints(self):
+        return {}
+
+
 def build_baseline_signals(*, namespace: Mapping[str, object] | None = None) -> list[object]:
     """Build an ordered baseline signal list for RunEngine SupplementalData.
 
     Baseline always includes all signals mapped in ``HDF5_OPHYD_MAP_BASE``.
     Additional YZ and GI stage signals are included when their mapped objects
     can be resolved in the provided ``namespace`` (or caller/global frames).
-    X-ray generator readbacks (voltage/current) are included when available.
+    X-ray generator readbacks (voltage/current) are included when resolvable,
+    with unavailable reads recorded as NaN at run time. Other signals stay strict.
     """
     signal_names: list[str] = list(HDF5_OPHYD_MAP_BASE.values())
 
@@ -246,6 +282,8 @@ def build_baseline_signals(*, namespace: Mapping[str, object] | None = None) -> 
         if signal_id in seen_ids:
             continue
         seen_ids.add(signal_id)
+        if signal_name in GENERATOR_BASELINE_SIGNALS:
+            signal = OptionalBaselineSignal(signal)
         baseline_signals.append(signal)
 
     return baseline_signals
