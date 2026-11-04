@@ -3232,6 +3232,48 @@ existing_plans:
       name: namespace
     properties:
       is_generator: true
+  evacuate:
+    description: Evacuate the chamber, leaving the pump on even if the plan fails.
+    module: mouse_bluesky.plans.vacuum
+    name: evacuate
+    parameters:
+    - annotation:
+        type: '''float'''
+      default: '1800.0'
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: timeout_s
+    - annotation:
+        type: '''Mapping[str, object] | None'''
+      default: None
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: namespace
+    properties:
+      is_generator: true
+  ventilate:
+    description: Ventilate the chamber, closing the vent output when the valve sequence ends.
+    module: mouse_bluesky.plans.vacuum
+    name: ventilate
+    parameters:
+    - annotation:
+        type: '''float'''
+      default: '600.0'
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: timeout_s
+    - annotation:
+        type: '''Mapping[str, object] | None'''
+      default: None
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: namespace
+    properties:
+      is_generator: true
   close_shutter:
     description: Close the shutter of the x-ray generator.
     module: __main__

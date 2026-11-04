@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .planner.logbook2bluesky import QueueServerTarget, build_plan_specs_from_logbook, populate_queue
+from .planner.models import PlanSpec
 from .planner.validate import validate_specs
 from .protocols.builtin import build_default_registry
 from .settings import Settings
@@ -131,7 +132,10 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
         user_group=args.user_group,
     )
     responses = populate_queue(specs, target=target, position=args.position)
+    return _report_queue_responses(responses, args)
 
+
+def _report_queue_responses(responses, args: argparse.Namespace) -> int:
     # inspect responses for errors
     normalized = [_normalize_queue_response(r) for r in responses]
     failed = [r for r in normalized if not r["success"]]
@@ -149,6 +153,13 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
     if not args.quiet:
         print(f"Enqueued {len(responses)} items to {args.zmq}.")
     return 0
+
+
+def _cmd_vacuum(args: argparse.Namespace) -> int:
+    """Enqueue one vacuum plan without starting the queue."""
+    target = QueueServerTarget(zmq_control_addr=args.zmq, user=args.user, user_group=args.user_group)
+    responses = populate_queue([PlanSpec(name=args.cmd)], target=target, position=args.position)
+    return _report_queue_responses(responses, args)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -175,18 +186,28 @@ def main(argv: list[str] | None = None) -> None:
 
     p_enq = sub.add_parser("enqueue", help="Compile, validate, and enqueue into a running Queue Server")
     add_common(p_enq)
-    p_enq.add_argument("--zmq", default="tcp://127.0.0.1:60615", help="Queue Server ZMQ control address")
-    p_enq.add_argument("--position", default="back", choices=["front", "back"], help="Queue insertion position")
-    p_enq.add_argument(
-        "--prioritize",
-        action="store_const",
-        const="front",
-        dest="position",
-        help="Insert at queue front preserving spec order (enqueued in reverse under the hood)",
-    )
-    p_enq.add_argument("--user", default="mouse-bluesky", help="Queue Server request user")
-    p_enq.add_argument("--user-group", default="primary", help="Queue Server request user group")
+
+    def add_queue_options(sp: argparse.ArgumentParser) -> None:
+        sp.add_argument("--zmq", default="tcp://127.0.0.1:60615", help="Queue Server ZMQ control address")
+        sp.add_argument("--position", default="back", choices=["front", "back"], help="Queue insertion position")
+        sp.add_argument(
+            "--prioritize",
+            action="store_const",
+            const="front",
+            dest="position",
+            help="Insert at queue front preserving spec order (enqueued in reverse under the hood)",
+        )
+        sp.add_argument("--user", default="mouse-bluesky", help="Queue Server request user")
+        sp.add_argument("--user-group", default="primary", help="Queue Server request user group")
+
+    add_queue_options(p_enq)
     p_enq.set_defaults(func=_cmd_enqueue)
+
+    for name in ("evacuate", "ventilate"):
+        p_vacuum = sub.add_parser(name, help=f"Enqueue the {name} plan without starting the queue")
+        add_queue_options(p_vacuum)
+        p_vacuum.add_argument("-q", "--quiet", action="store_true", help="Less output")
+        p_vacuum.set_defaults(func=_cmd_vacuum)
 
     ns = p.parse_args(argv)
     rc = int(ns.func(ns))

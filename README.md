@@ -172,3 +172,13 @@ mouse-bluesky enqueue /path/to/logbook.xlsx /path/to/projects --zmq tcp://127.0.
   shaped replies (e.g. `(success, message, traceback)`) or objects with `success`
   attributes are handled gracefully and their messages are surfaced when requests
   fail.
+
+Vacuum scripts `./evacuate.sh` and `./ventilate.sh` enqueue one plan; start the
+queue separately. Add `--prioritize` to insert at the front. After deploying,
+close and reopen the Queue Server environment to load the new plans.
+Evacuation leaves the pump (`do6`) on, including after a failure once pumping
+has started. Ventilation closes `do7` when its valve sequence ends, including
+on failure, timeout, stop or abort. Shutter closes are best-effort: faults warn
+and execution continues, with safety provided by the interlocks. A worker
+crash or power loss prevents the finalizer from running, so `do7` may stay
+open. See [vacuum operations](design_documentation/operations.md#vacuum-plans).

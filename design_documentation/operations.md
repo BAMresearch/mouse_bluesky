@@ -60,6 +60,49 @@ Start the queue from the Queue Server UI/CLI.
 
 ## Runtime behavior
 
+### Vacuum plans
+
+After deploying these plans, close and reopen the Queue Server environment so
+`evacuate` and `ventilate` are loaded. From the repository root, use:
+
+```bash
+./evacuate.sh
+./ventilate.sh --prioritize
+```
+
+The scripts only enqueue one item; start the queue separately. Both default to
+the back of the queue. `--prioritize` inserts at the front, and the scripts
+forward other CLI options such as `--zmq`, `--position`, `--user` and `--user-group`.
+The equivalent commands are `mouse-bluesky evacuate` and `mouse-bluesky ventilate`.
+
+Both plans resolve the required devices and read detector position, pressure
+and valve outputs before any write. A failed pre-flight read or non-finite
+pressure prevents execution. Each plan opens an audit run recording its
+activity, target pressure and timeout. It disables checkpoint replay, sends a
+best-effort close to each source shutter, then parks the detector at `detx=400`.
+Missing, offline or slow shutters produce warnings and the plans continue;
+safety relies on the shutters' own interlocks.
+
+`evacuate` confirms `do7=0`, then `do6=1`, and polls pressure every 3 s until
+pressure is at most 1 (default timeout 1800 s). The pump remains on at success.
+On failure, timeout or abort, `do6` is left as it is, including staying on after
+a failed evacuation; an operator decides what happens next.
+
+`ventilate` confirms `do6=0`, waits 1 s, confirms `do7=1`, and polls every 1 s
+until pressure is at least 900 (default timeout 600 s). It then holds for 10 s
+and reads pressure again. A finalizer inside the audit run closes `do7` when
+the valve sequence succeeds, fails, times out, is stopped or is aborted.
+Aborting during the initial shutter wait issues no valve commands. An immediate
+pause during ventilation ends the plan and runs cleanup rather than leaving
+the vent open in a paused plan. If the worker process crashes or power is lost,
+the finalizer cannot run and `do7` may stay open.
+
+Valve outputs are always written, even if their cached values already match.
+Each write waits for confirmation with a 30 s timeout; the slowly scanned
+`do6_RBV` and `do7_RBV` signals are not used. The ordered commands keep `do6`
+and `do7` from being enabled together. Every pressure read must be finite;
+bad readings or a pressure timeout fail the plan and stop the queue.
+
 ### Baseline stream
 
 Baseline devices are configured at RunEngine level via `SupplementalData`.
