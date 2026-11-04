@@ -22,10 +22,10 @@ def mouse_eiger_measure(eiger, destination: Path, *, exposure_time: float = 1) -
     yield from ad_configure_exposure(eiger, exposure_time=exposure_time, output_path=destination)
 
     yield from bps.stage(eiger)
-    try:
-        yield from bps.trigger_and_read([eiger], name="mouse_eiger_measure")
-    finally:
-        yield from bps.unstage(eiger)
+    yield from bpp.finalize_wrapper(
+        bps.trigger_and_read([eiger], name="mouse_eiger_measure"),
+        bps.unstage(eiger),
+    )
 
 
 def measure_yzstage_atomic(

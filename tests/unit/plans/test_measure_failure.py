@@ -5,8 +5,9 @@ import pytest
 from bluesky import RunEngine
 from bluesky import plan_stubs as bps
 from bluesky import preprocessors as bpp
-from bluesky.utils import RunEngineInterrupted
+from bluesky.utils import FailedStatus, RunEngineInterrupted
 from ophyd import Signal
+from ophyd.sim import SynSignal
 from ophyd.status import Status
 from ophyd.utils import DisconnectedError
 
@@ -329,4 +330,186 @@ def test_baseline_failure_at_close_does_not_prevent_shutter_cleanup(rig, monkeyp
     assert rig.shutter.writes == [1, 0]
     assert rig.shutter.get() == 0
     assert rig.stop_doc["exit_status"] == "fail"
+    rig.assert_incomplete()
+
+
+class ExposureRecordingShutter(RecordingShutter):
+    def __init__(self, events):
+        super().__init__()
+        self.events = events
+
+    def set(self, value, **kwargs):
+        self.events.append(f"shutter={value}")
+        return super().set(value, **kwargs)
+
+
+class SlowDetector(SynSignal):
+    """Readable detector with real asynchronous trigger statuses and stage tracking."""
+
+    def __init__(self, events):
+        super().__init__(func=lambda: 1.0, name="eiger")
+        self.events = events
+        self.is_staged = False
+        self.trigger_delay_s = 0.02
+        self.trigger_error = None
+        self.unstage_error = None
+        self.statuses = []
+        self.timers = []
+
+    def stage(self):
+        self.events.append("stage")
+        self.is_staged = True
+        return [self]
+
+    def unstage(self):
+        self.events.append("unstage")
+        if self.unstage_error is not None:
+            raise self.unstage_error
+        self.is_staged = False
+        return [self]
+
+    def trigger(self):
+        self.events.append("trigger")
+        status = Status(self)
+        self.statuses.append(status)
+
+        def finish():
+            if self.trigger_error is None:
+                status.set_finished()
+            else:
+                status.set_exception(self.trigger_error)
+
+        timer = Timer(self.trigger_delay_s, finish)
+        self.timers.append(timer)
+        timer.start()
+        return status
+
+
+@pytest.fixture
+def exposure_rig(tmp_path, monkeypatch):
+    # Use the real mouse_eiger_measure; only hardware configuration is replaced.
+    rig = MeasurementRig(tmp_path)
+    rig.events = []
+    rig.shutter = ExposureRecordingShutter(rig.events)
+    rig.namespace["cu_generator"].shutter = rig.shutter
+    rig.detector = SlowDetector(rig.events)
+    rig.namespace["eiger"] = rig.detector
+
+    def no_configuration(*args, **kwargs):
+        yield from ()
+
+    monkeypatch.setattr("mouse_bluesky.plans.atomic.ad_configure_exposure", no_configuration)
+    monkeypatch.setattr("mouse_bluesky.plans.public.ad_configure_energy", no_configuration)
+    yield rig
+    if rig.RE.state != "idle":
+        rig.RE.halt()
+    for timer in rig.detector.timers:
+        timer.join(timeout=1)
+        assert not timer.is_alive()
+
+
+def pause_during_trigger(rig):
+    ready = Event()
+    errors = []
+    original_hook = rig.RE.msg_hook
+    rig.detector.trigger_delay_s = 0.25
+
+    def hook(msg):
+        original_hook(msg)
+        if msg.command == "trigger" and msg.obj is rig.detector:
+            ready.set()
+
+    def pause():
+        try:
+            if not ready.wait(timeout=3):
+                raise AssertionError("Measurement did not trigger the detector")
+            rig.RE.request_pause(defer=False)
+        except Exception as exc:
+            errors.append(exc)
+
+    rig.RE.msg_hook = hook
+    thread = Thread(target=pause, daemon=True)
+    thread.start()
+    try:
+        with pytest.raises(RunEngineInterrupted):
+            rig.RE(rig.plan())
+    finally:
+        thread.join(timeout=3)
+    assert not thread.is_alive()
+    assert errors == []
+    assert rig.RE.state == "paused"
+    assert rig.events == ["shutter=1", "stage", "trigger"]
+    assert rig.detector.is_staged
+    assert len(rig.detector.statuses) == 1
+    assert not rig.detector.statuses[0].done
+    assert rig.shutter.get() == 1
+    rig.assert_incomplete()
+
+
+def test_real_exposures_stage_trigger_unstage_before_successful_close(exposure_rig):
+    rig = exposure_rig
+    rig.RE(rig.plan())
+
+    assert rig.events == ["shutter=1", *(["stage", "trigger", "unstage"] * 3), "shutter=0"]
+    assert not rig.detector.is_staged
+    assert rig.stop_doc["exit_status"] == "success"
+    assert len(list(rig.root.rglob("COMPLETE"))) == 1
+
+
+def test_halt_during_real_exposure_unstages_without_generator_exit_error(exposure_rig):
+    rig = exposure_rig
+    pause_during_trigger(rig)
+    rig.RE.halt()
+
+    assert rig.RE.state == "idle"
+    assert rig.stop_doc["exit_status"] == "abort"
+    assert rig.events == ["shutter=1", "stage", "trigger", "unstage"]
+    assert not rig.detector.is_staged
+    assert rig.shutter.writes == [1]
+    assert rig.shutter.get() == 1
+    rig.assert_incomplete()
+
+
+@pytest.mark.parametrize("method, status", [("abort", "abort"), ("stop", "success")])
+def test_abort_or_stop_during_real_exposure_unstages_before_close(exposure_rig, method, status):
+    rig = exposure_rig
+    pause_during_trigger(rig)
+    getattr(rig.RE, method)()
+
+    assert rig.RE.state == "idle"
+    assert rig.stop_doc["exit_status"] == status
+    assert rig.events == ["shutter=1", "stage", "trigger", "unstage", "shutter=0"]
+    assert not rig.detector.is_staged
+    assert rig.shutter.writes == [1, 0]
+    assert rig.shutter.get() == 0
+    rig.assert_incomplete()
+
+
+def test_real_exposure_trigger_failure_unstages_before_shutter_close(exposure_rig):
+    rig = exposure_rig
+    error = rig.detector.trigger_error = RuntimeError("detector trigger failed")
+
+    with pytest.raises(FailedStatus) as exc:
+        rig.RE(rig.plan())
+
+    assert exc.value.__cause__ is error
+    assert rig.stop_doc["exit_status"] == "fail"
+    assert rig.events == ["shutter=1", "stage", "trigger", "unstage", "shutter=0"]
+    assert not rig.detector.is_staged
+    assert rig.shutter.get() == 0
+    rig.assert_incomplete()
+
+
+def test_real_exposure_unstage_failure_closes_shutter_and_fails_run(exposure_rig):
+    rig = exposure_rig
+    error = rig.detector.unstage_error = RuntimeError("detector unstage failed")
+
+    with pytest.raises(RuntimeError) as exc:
+        rig.RE(rig.plan())
+
+    assert exc.value is error
+    assert rig.stop_doc["exit_status"] == "fail"
+    assert rig.events.index("unstage") < rig.events.index("shutter=0")
+    assert rig.shutter.writes == [1, 0]
+    assert rig.shutter.get() == 0
     rig.assert_incomplete()
