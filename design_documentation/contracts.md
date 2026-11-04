@@ -36,6 +36,32 @@ Output:
 Rule:
 - `config_id` may be sourced from `plan.meta["config_id"]` or `plan.parameters["config_id"]`
 
+### Source energy and fail-stop behavior
+
+`apply_config` and `measure_yzstage` share the legacy source selection rule:
+
+| First digit of `config_id` | Source | Generator | PhotonEnergy (eV) | ThresholdEnergy (eV) |
+|---|---|---|---|---|
+| odd (e.g. 123) | Cu | `cu_generator` | 8050 | 4025 |
+| even (e.g. 223) | Mo | `mo_generator` | 17480 | 8740 |
+
+`apply_config` resolves the required `eiger` detector along with the motors,
+before any motor moves. After the moves, it reads both energy readbacks and
+skips writing only if both are within 1 eV of their targets. Otherwise it writes
+photon energy first, then threshold energy, always both: the detector firmware
+can reset the threshold when photon energy changes. Each write waits for
+completion with a 60 s timeout. Both readbacks are then checked again; a
+mismatch raises `RuntimeError` identifying the signal, target and readback.
+Returning from Mo to Cu explicitly restores the Cu energies.
+
+The audit run records `photon_energy_ev` and `threshold_energy_ev`. An energy
+write failure, timeout or readback mismatch stops execution and closes that
+audit run with `exit_status="fail"`; measurement must not continue.
+`measure_yzstage` repeats the same energy guard before allocating its sequence
+directory or opening the shutter, including when called without `apply_config`.
+An energy failure there leaves the shutter unopened and creates no sequence
+directory. When `apply_config` already set the energies, the guard adds no writes.
+
 ## NeXus state file contract
 
 - file name: `{config_id}.nxs`

@@ -5,6 +5,42 @@ from types import SimpleNamespace
 from ophyd import Signal
 from ophyd.sim import SynAxis
 
+from mouse_bluesky.plans.source import CU_SOURCE
+
+
+class FakeEnergySignal(Signal):
+    """Record set requests and emulate the Eiger's threshold reset."""
+
+    def __init__(self, *, detector, field: str, value: float):
+        super().__init__(name=f"eiger_{field}", value=value)
+        self.detector = detector
+        self.field = field
+        self.respond_to_set = True
+
+    def set(self, value, *, timeout=None, **kwargs):
+        self.detector.writes.append((self.field, value))
+        self.detector.set_timeouts.append(timeout)
+        if self.field == "photon_energy":
+            self.detector.cam.threshold_energy.put(0)
+        return super().set(value if self.respond_to_set else self.get(), timeout=timeout, **kwargs)
+
+
+class FakeEiger:
+    """Signal-only detector for energy tests; never instantiates EPICS devices."""
+
+    def __init__(
+        self,
+        *,
+        photon_energy_ev: float = CU_SOURCE.photon_energy_ev,
+        threshold_energy_ev: float = CU_SOURCE.threshold_energy_ev,
+    ):
+        self.writes: list[tuple[str, float]] = []
+        self.set_timeouts: list[float | None] = []
+        self.cam = SimpleNamespace(
+            photon_energy=FakeEnergySignal(detector=self, field="photon_energy", value=photon_energy_ev),
+            threshold_energy=FakeEnergySignal(detector=self, field="threshold_energy", value=threshold_energy_ev),
+        )
+
 
 def build_startup_namespace(
     *,
@@ -67,6 +103,6 @@ def build_startup_namespace(
             temperature_stage=Signal(name="temperature_stage", value=26.7),
         )
     if include_eiger:
-        namespace["eiger"] = object()
+        namespace["eiger"] = FakeEiger()
 
     return namespace

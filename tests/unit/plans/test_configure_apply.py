@@ -9,7 +9,7 @@ from ophyd import Signal
 from ophyd.sim import SynAxis
 
 from mouse_bluesky.plans.configure import HDF5_OPHYD_MAP_BASE, apply_config
-from tests.unit.plans.support import build_startup_namespace
+from tests.unit.plans.support import FakeEiger, build_startup_namespace
 
 CONFIG_ROOT = Path("tests/data/mouse_configs")
 
@@ -45,11 +45,12 @@ def _build_counting_namespace(
             axes[hdf5_path] = axis
 
     namespace["beam_stop"].out_position = 270.0
+    namespace["eiger"] = FakeEiger()
     return namespace, axes
 
 
 def test_apply_config_does_not_move_sample_stage_yz():
-    namespace = build_startup_namespace(include_yz=True, include_generators=False)
+    namespace = build_startup_namespace(include_yz=True, include_generators=False, include_eiger=True)
     RE = RunEngine({})
     config_root = CONFIG_ROOT.as_posix()
 
@@ -63,7 +64,7 @@ def test_apply_config_does_not_move_sample_stage_yz():
 
 
 def test_apply_config_uses_qserver_user_namespace_when_namespace_is_none():
-    namespace = build_startup_namespace(include_yz=True, include_generators=False)
+    namespace = build_startup_namespace(include_yz=True, include_generators=False, include_eiger=True)
     RE = RunEngine({})
     config_root = CONFIG_ROOT.as_posix()
 
@@ -76,7 +77,7 @@ def test_apply_config_uses_qserver_user_namespace_when_namespace_is_none():
 
 
 def test_apply_config_emits_start_and_stop_documents():
-    namespace = build_startup_namespace(include_yz=True, include_generators=False)
+    namespace = build_startup_namespace(include_yz=True, include_generators=False, include_eiger=True)
     RE = RunEngine({})
     config_root = CONFIG_ROOT.as_posix()
     docs: list[tuple[str, dict]] = []
@@ -136,7 +137,7 @@ def test_apply_config_moves_dual_outside_retry_deadband():
 
 
 def test_apply_config_emits_failed_run_documents_when_config_is_missing(tmp_path: Path):
-    namespace = build_startup_namespace(include_yz=True, include_generators=False)
+    namespace = build_startup_namespace(include_yz=True, include_generators=False, include_eiger=True)
     RE = RunEngine({})
     docs: list[tuple[str, dict]] = []
 

@@ -6,11 +6,13 @@ from typing import Mapping
 
 from bluesky import plan_stubs as bps
 
+from mouse_bluesky.devices.eiger import ad_configure_energy
 from mouse_bluesky.settings import Settings
 
 from .atomic import measure_yzstage_atomic
 from .sequence import allocate_sequence_dir
 from .snapshot import snapshot_state
+from .source import source_settings_for_config_id
 
 UNRESOLVED_YMD_SENTINEL = "20261232"
 
@@ -67,19 +69,6 @@ def _resolve_measurement_ymd(ymd: str | None) -> str:
     return UNRESOLVED_YMD_SENTINEL if ymd is None else ymd
 
 
-def _legacy_generator_name_for_config_id(config_id: int) -> str:
-    """Resolve the source generator name from the legacy config-id convention.
-
-    Current beamline operation still infers the active source from the leading
-    digit of `config_id`: odd selects `cu_generator`, even selects
-    `mo_generator`.
-    """
-    digits = [char for char in str(config_id) if char.isdigit()]
-    if not digits:
-        raise ValueError(f"`config_id` must contain at least one digit, got {config_id!r}")
-    return "cu_generator" if int(digits[0]) % 2 == 1 else "mo_generator"
-
-
 def measure_yzstage(
     *,
     entry_row_index: int = 0,
@@ -106,7 +95,8 @@ def measure_yzstage(
     `ymd` defaults to an impossible-date sentinel rather than today's date so
     underspecified runs do not pollute an existing daily dataset. Source
     selection currently follows the legacy config-id convention implemented by
-    `_legacy_generator_name_for_config_id`.
+    `source_settings_for_config_id`. Detector energies are verified before
+    allocating a sequence directory or opening the shutter.
     """
     if root_path is None:
         root_path = Settings.from_env().root_path.as_posix()
@@ -115,13 +105,19 @@ def measure_yzstage(
     eiger = _resolve_optional_device(eiger, name="eiger", namespace=namespace)
     sample_stage_yz = _resolve_optional_device(sample_stage_yz, name="sample_stage_yz", namespace=namespace)
     beam_stop = _resolve_optional_device(beam_stop, name="beam_stop", namespace=namespace)
-    xray_generator_name = _legacy_generator_name_for_config_id(int(config_id))
+    source = source_settings_for_config_id(int(config_id))
 
-    xray_generator = _resolve_optional_device(None, name=xray_generator_name, namespace=namespace)
+    xray_generator = _resolve_optional_device(None, name=source.generator_name, namespace=namespace)
 
     root = Path(root_path)
     if sampleposition is None:
         sampleposition = {}
+
+    yield from ad_configure_energy(
+        eiger,
+        photon_energy_ev=source.photon_energy_ev,
+        threshold_energy_ev=source.threshold_energy_ev,
+    )
 
     sequence_index, destination = allocate_sequence_dir(root=root, ymd=ymd, batchnum=batchnum)
 

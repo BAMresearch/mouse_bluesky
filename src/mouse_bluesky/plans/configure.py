@@ -9,6 +9,10 @@ import h5py
 from attrs import field, frozen
 from bluesky import plan_stubs as bps
 
+from mouse_bluesky.devices.eiger import ad_configure_energy
+
+from .source import source_settings_for_config_id
+
 # NOTE: when adding devices, add them here. For example, adding syringe injector positions and
 # temperature controller setpoints would be common additions. This keeps track of what devices
 # are expected to be in the config files and allows for dynamic resolution. Adding to baseline
@@ -289,18 +293,23 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
     4. Executes grouped moves in ``MOVE_IN_GROUPS`` order to coordinate motors
        that should move together.
     5. Moves remaining mapped signals one-by-one.
+    6. Sets and verifies Eiger photon/threshold energies for the selected source.
 
     Raises:
         FileNotFoundError: If the config file does not exist.
         KeyError: If required datasets are missing or a stage section is partial.
         NameError: If a mapped device root name cannot be resolved.
+        RuntimeError: If an Eiger energy readback does not reach its target.
     """
     config_file_path = Path(config_root) / f"{config_id}.nxs"
+    source = source_settings_for_config_id(config_id)
     run_md = {
         "activity": "apply_config",
         "config_id": int(config_id),
         "config_root": Path(config_root).as_posix(),
         "config_file": config_file_path.as_posix(),
+        "photon_energy_ev": source.photon_energy_ev,
+        "threshold_energy_ev": source.threshold_energy_ev,
     }
 
     yield from bps.open_run(md=run_md)
@@ -319,6 +328,7 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
                 hdf5_path: _resolve_dotted_name(signal_name, namespace=namespace)
                 for hdf5_path, signal_name in ophyd_map.items()
             }
+            eiger = _resolve_dotted_name("eiger", namespace=namespace)
             values = {hdf5_path: float(f[hdf5_path][()]) for hdf5_path in ophyd_map}
 
         moved_paths: set[str] = set()
@@ -341,6 +351,11 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
                 continue
             if _move_required(signal, values[hdf5_path]):
                 yield from bps.mv(signal, values[hdf5_path])
+        yield from ad_configure_energy(
+            eiger,
+            photon_energy_ev=source.photon_energy_ev,
+            threshold_energy_ev=source.threshold_energy_ev,
+        )
     except Exception as exc:
         yield from bps.close_run(exit_status="fail", reason=str(exc))
         raise

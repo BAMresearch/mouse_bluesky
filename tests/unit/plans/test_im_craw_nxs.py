@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import h5py
+from bluesky import RunEngine
 
 from mouse_bluesky.plans.im_craw import write_im_craw_nxs
 from mouse_bluesky.plans.public import measure_yzstage
@@ -92,7 +93,7 @@ def test_measure_yzstage_writes_im_craw_next_to_detector_data(
         sampleposition={"ysam": 1.2, "zsam": -0.4},
         sample_exposure_time=33.0,
     )
-    list(plan)
+    RunEngine({})(plan)
 
     sample_out = destination / "im_craw.nxs"
     beam_profile_out = destination / "beam_profile" / "im_craw.nxs"

@@ -9,6 +9,36 @@ from ophyd.areadetector.cam import EigerDetectorCam
 from ophyd.areadetector.plugins import ImagePlugin, ROIPlugin, ROIStatNPlugin_V25, ROIStatPlugin_V35, StatsPlugin
 from ophyd.areadetector.trigger_mixins import SingleTrigger
 
+ENERGY_SET_TIMEOUT_S = 60
+ENERGY_TOLERANCE_EV = 1
+
+
+def ad_configure_energy(det, *, photon_energy_ev: float, threshold_energy_ev: float):
+    """Set and verify source energies, reading the SignalWithRBV readbacks.
+
+    Photon energy must be written first because the firmware may reset the
+    threshold on that write. Skip both writes only when both readbacks match.
+    """
+    photon_energy = yield from bps.rd(det.cam.photon_energy)
+    threshold_energy = yield from bps.rd(det.cam.threshold_energy)
+    if (
+        abs(photon_energy - photon_energy_ev) <= ENERGY_TOLERANCE_EV
+        and abs(threshold_energy - threshold_energy_ev) <= ENERGY_TOLERANCE_EV
+    ):
+        return
+
+    yield from bps.abs_set(det.cam.photon_energy, photon_energy_ev, wait=True, timeout=ENERGY_SET_TIMEOUT_S)
+    yield from bps.abs_set(det.cam.threshold_energy, threshold_energy_ev, wait=True, timeout=ENERGY_SET_TIMEOUT_S)
+
+    photon_energy = yield from bps.rd(det.cam.photon_energy)
+    threshold_energy = yield from bps.rd(det.cam.threshold_energy)
+    for signal, target, readback in (
+        (det.cam.photon_energy, photon_energy_ev, photon_energy),
+        (det.cam.threshold_energy, threshold_energy_ev, threshold_energy),
+    ):
+        if not abs(readback - target) <= ENERGY_TOLERANCE_EV:
+            raise RuntimeError(f"{signal.name}: target {target} eV, readback {readback} eV")
+
 
 class EigerWithStats(SingleTrigger, EigerDetector):
     """
