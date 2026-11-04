@@ -1,14 +1,15 @@
 from pathlib import Path
 from shutil import copyfile
 
+import numpy as np
 import pytest
 from bluesky import RunEngine
 
-from mouse_bluesky.devices.eiger import ENERGY_SET_TIMEOUT_S, ad_configure_energy
+from mouse_bluesky.devices.eiger import ENERGY_SET_TIMEOUT_S, ENERGY_TOLERANCE_EV, ad_configure_energy
 from mouse_bluesky.plans.configure import HDF5_OPHYD_MAP_BASE, _resolve_dotted_name, apply_config
 from mouse_bluesky.plans.public import measure_yzstage
 from mouse_bluesky.plans.source import CU_SOURCE, MO_SOURCE, source_settings_for_config_id
-from tests.unit.plans.support import FakeEiger, build_startup_namespace
+from tests.unit.plans.support import FakeEiger, FakeEnergySignal, build_startup_namespace
 
 
 @pytest.fixture
@@ -24,9 +25,9 @@ def config_root(tmp_path: Path) -> str:
 @pytest.mark.parametrize(
     "config_id, generator_name, photon_energy_ev, threshold_energy_ev",
     [
-        (123, "cu_generator", 8050, 4025),
+        (123, "cu_generator", 8047.78, 4023.89),
         (223, "mo_generator", 17480, 8740),
-        (323, "cu_generator", 8050, 4025),
+        (323, "cu_generator", 8047.78, 4023.89),
         (423, "mo_generator", 17480, 8740),
     ],
 )
@@ -44,6 +45,54 @@ def _assert_energy(detector, source):
 
 def _expected_writes(source):
     return [("photon_energy", source.photon_energy_ev), ("threshold_energy", source.threshold_energy_ev)]
+
+
+class Float32EnergySignal(FakeEnergySignal):
+    """Round the stored readback while retaining the real Signal.set wait."""
+
+    def put(self, value, **kwargs):
+        return super().put(float(np.float32(value)), **kwargs)
+
+
+@pytest.mark.parametrize("source", [CU_SOURCE, MO_SOURCE])
+def test_energy_write_with_float32_readback(source, monkeypatch):
+    # A missing tolerance must fail quickly through the real Signal.set path.
+    monkeypatch.setattr("mouse_bluesky.devices.eiger.ENERGY_SET_TIMEOUT_S", 0.05)
+    detector = FakeEiger(photon_energy_ev=0, threshold_energy_ev=0)
+    for field in ("photon_energy", "threshold_energy"):
+        signal = Float32EnergySignal(detector=detector, field=field, value=0)
+        assert signal.tolerance is None
+        setattr(detector.cam, field, signal)
+
+    RunEngine({})(
+        ad_configure_energy(
+            detector, photon_energy_ev=source.photon_energy_ev, threshold_energy_ev=source.threshold_energy_ev
+        )
+    )
+
+    assert detector.writes == _expected_writes(source)
+    for field, target in _expected_writes(source):
+        signal = getattr(detector.cam, field)
+        assert signal.get() == float(np.float32(target))
+        assert abs(signal.get() - target) <= ENERGY_TOLERANCE_EV
+        assert signal.tolerance == ENERGY_TOLERANCE_EV
+        if source is CU_SOURCE:
+            assert signal.get() != target  # The wait really accepted a rounded readback.
+
+
+@pytest.mark.parametrize(
+    "photon_energy_ev, threshold_energy_ev, needs_write",
+    [(8047.78, 4023.89, False), (8050, 4025, True)],
+)
+def test_apply_config_uses_exact_cu_energy(config_root, photon_energy_ev, threshold_energy_ev, needs_write):
+    namespace = build_startup_namespace(include_eiger=True)
+    detector = FakeEiger(photon_energy_ev=photon_energy_ev, threshold_energy_ev=threshold_energy_ev)
+    namespace["eiger"] = detector
+
+    RunEngine({})(apply_config(config_id=123, config_root=config_root, namespace=namespace))
+
+    _assert_energy(detector, CU_SOURCE)
+    assert detector.writes == (_expected_writes(CU_SOURCE) if needs_write else [])
 
 
 def test_fake_eiger_resets_threshold_on_photon_write():

@@ -27,6 +27,8 @@ def ad_configure_energy(det, *, photon_energy_ev: float, threshold_energy_ev: fl
     ):
         return
 
+    det.cam.photon_energy.tolerance = ENERGY_TOLERANCE_EV
+    det.cam.threshold_energy.tolerance = ENERGY_TOLERANCE_EV
     yield from bps.abs_set(det.cam.photon_energy, photon_energy_ev, wait=True, timeout=ENERGY_SET_TIMEOUT_S)
     yield from bps.abs_set(det.cam.threshold_energy, threshold_energy_ev, wait=True, timeout=ENERGY_SET_TIMEOUT_S)
 

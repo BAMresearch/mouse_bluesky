@@ -8,7 +8,7 @@ class SourceSettings:
     threshold_energy_ev: float
 
 
-CU_SOURCE = SourceSettings(generator_name="cu_generator", photon_energy_ev=8050, threshold_energy_ev=4025)
+CU_SOURCE = SourceSettings(generator_name="cu_generator", photon_energy_ev=8047.78, threshold_energy_ev=4023.89)
 MO_SOURCE = SourceSettings(generator_name="mo_generator", photon_energy_ev=17480, threshold_energy_ev=8740)
 
 
