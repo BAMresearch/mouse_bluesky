@@ -47,7 +47,7 @@ def test_write_im_craw_nxs_writes_metadata_and_state(tmp_path: Path) -> None:
         assert _scalar(f["/entry1/sample/sampleid"][()]) == 12
         assert _scalar(f["/entry1/instrument/configuration"][()]) == 161
         assert _scalar(f["/entry1/instrument/source/name"][()]) == "cu_generator"
-        assert float(_scalar(f["/entry1/instrument/source/voltage"][()])) == 45.0
+        assert float(_scalar(f["/entry1/instrument/source/voltage"][()])) == 5000
         assert float(_scalar(f["/saxs/Saxslab/chamber_pressure"][()])) == 1.2
         assert float(_scalar(f["/entry1/experiment/environment_temperature"][()])) == 22.3
         assert float(_scalar(f["/entry1/experiment/stage_temperature"][()])) == 26.7

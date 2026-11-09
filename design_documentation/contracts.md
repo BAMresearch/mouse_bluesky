@@ -63,6 +63,13 @@ directory or opening the shutter, including when called without `apply_config`.
 An energy failure there leaves the shutter unopened and creates no sequence
 directory. When `apply_config` already set the energies, the guard adds no writes.
 
+Before the energy guard, `measure_yzstage` reads the active generator's voltage
+and current and requires finite power of at least 90% of nominal (Cu 27 W,
+Mo 45 W). The order is power check, energy guard, sequence directory, then run.
+A failed power check stops the queue and leaves nothing behind: no detector
+writes, sequence directory, run documents or shutter commands. Read failures
+propagate unchanged.
+
 ## NeXus state file contract
 
 - file name: `{config_id}.nxs`

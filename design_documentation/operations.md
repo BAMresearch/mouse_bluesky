@@ -123,10 +123,25 @@ connection changes.
 
 Motors, `pressure_gauge` and `arduino` remain strict: a read failure still fails
 the run. This tolerance applies only to baseline recording. An offline active
-source still stops a measurement because its shutter and the voltage/current
-reads in `write_im_craw_nxs` remain strict; the run is recorded as `fail`.
+source stops a measurement at the power check before a run opens. Its shutter
+and the voltage/current reads in `write_im_craw_nxs` also remain strict if a
+failure occurs later in the measurement; the run then records `fail`.
 
 ### Measurement failures and interruption
+
+`measure_yzstage` checks the active source's power once, immediately after
+resolving devices and before configuring detector energies. It requires at
+least 90% of full power: Cu at least 27 W of 30 W, Mo at least 45 W of 50 W.
+The generator readbacks are raw integers: each voltage count is 10 V and each
+current count is 10 uA, so power in watts is raw voltage × raw current × 1e-4.
+Cu at 5000/60 is 50 kV × 0.6 mA = 30 W. Mo is assumed to use the same scaling;
+this cannot be verified while its source is faulted.
+
+Non-finite or insufficient power raises an error naming the generator, power,
+minimum and both raw readings. Read failures propagate unchanged. A failed
+check stops the queue before anything is written: no detector energy writes,
+sequence directory, run documents or shutter commands. The check only reads
+the selected generator and does not monitor source trips during exposures.
 
 | Exit route | Shutter | `exit_status` | `COMPLETE` file |
 |---|---|---|---|
@@ -137,12 +152,16 @@ reads in `write_im_craw_nxs` remain strict; the run is recorded as `fail`.
 | Halt | Not closed: Bluesky skips cleanup | `abort` | Not written |
 
 A stopped measurement is recorded as `success`, so a missing `COMPLETE` file
-shows that it did not finish. An energy configuration failure or `open_run`
-failure sends no shutter close because the shutter open was never attempted.
+shows that it did not finish. A source power check failure, energy configuration
+failure or `open_run` failure sends no shutter close because the shutter open
+was never attempted.
 If the strict close on the normal path fails, the measurement fails and sends
 one best-effort retry. The original exception still reaches the caller even
 if that retry fails.
 
+Strict shutter open and close commands wait up to 10 s, including the
+interactive `open_shutter` and `close_shutter` plans. A timeout fails the
+measurement and sends one best-effort close, preserving the original error.
 The best-effort close waits up to 5 s. A warning means the shutter state is
 unconfirmed, and safety relies on the interlocks. No motor moves are added on
 failure: by maintainer decision, the beam stop stays where it was because the

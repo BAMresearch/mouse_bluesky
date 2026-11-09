@@ -12,7 +12,7 @@ from mouse_bluesky.settings import Settings
 from .atomic import measure_yzstage_atomic
 from .sequence import allocate_sequence_dir
 from .snapshot import snapshot_state
-from .source import source_settings_for_config_id
+from .source import check_source_power, source_settings_for_config_id
 
 UNRESOLVED_YMD_SENTINEL = "20261232"
 
@@ -95,8 +95,12 @@ def measure_yzstage(
     `ymd` defaults to an impossible-date sentinel rather than today's date so
     underspecified runs do not pollute an existing daily dataset. Source
     selection currently follows the legacy config-id convention implemented by
-    `source_settings_for_config_id`. Detector energies are verified before
-    allocating a sequence directory or opening the shutter.
+    `source_settings_for_config_id`. The active source must first produce at
+    least 90% of nominal power (Cu 27 W, Mo 45 W), then detector energies are
+    verified, then a sequence directory is allocated and the run is opened.
+    A failed power check leaves no detector writes, directory, run or shutter
+    commands. Power is checked once; it is not monitored during exposures.
+    Strict shutter open and close commands time out after 10 s.
 
     After an attempted shutter open, exceptions, abort and stop send one
     best-effort close without moving any motor. Exceptions record ``fail``
@@ -115,6 +119,8 @@ def measure_yzstage(
     source = source_settings_for_config_id(int(config_id))
 
     xray_generator = _resolve_optional_device(None, name=source.generator_name, namespace=namespace)
+
+    yield from check_source_power(xray_generator, source)
 
     root = Path(root_path)
     if sampleposition is None:

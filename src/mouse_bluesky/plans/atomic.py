@@ -10,7 +10,7 @@ from mouse_bluesky.devices.eiger import ad_configure_exposure
 
 from ..devices.mouse_motors import BeamStop, SampleStageYZ
 from .im_craw import write_im_craw_nxs
-from .shutter import close_shutter_best_effort
+from .shutter import close_shutter_best_effort, set_shutter
 
 BEAM_PROFILE_EXPOSURE_TIME: float = 20.0
 BEAM_PROFILE_THROUGH_SAMPLE_EXPOSURE_TIME: float = 20.0
@@ -45,7 +45,7 @@ def measure_yzstage_atomic(
     in_position = beam_stop.bsr.position
 
     def sequence():
-        yield from bps.mv(shutter, 1)
+        yield from set_shutter(shutter, 1)
         yield from bps.mv(beam_stop.bsr, beam_stop.out_position)
 
         yield from bps.mv(sample_stage_yz.y, sampleposition.get("ysam.blank", sample_stage_yz.y.position))
@@ -87,7 +87,7 @@ def measure_yzstage_atomic(
         )
         yield from mouse_eiger_measure(eiger, destination, exposure_time=sample_exposure_time)
 
-        yield from bps.mv(shutter, 0)
+        yield from set_shutter(shutter, 0)
 
     def close_shutter(exc):
         yield from close_shutter_best_effort(shutter, shutter.name)

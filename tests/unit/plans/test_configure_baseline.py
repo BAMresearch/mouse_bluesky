@@ -231,7 +231,7 @@ def test_generator_baseline_survives_connection_changes(baseline_run, capsys, st
     assert [doc["exit_status"] for name, doc in docs if name == "stop"] == ["success"]
     assert len([doc for name, doc in docs if name == "descriptor" and doc["name"] == "baseline"]) == 1
     for index, event in enumerate(events):
-        for signal, value in zip(signals, (50.0, 22.0), strict=True):
+        for signal, value in zip(signals, (5000, 100), strict=True):
             unavailable = state in ("down", "read_error") or (state == "crash" and index == 1)
             if unavailable:
                 assert math.isnan(event["data"][signal.name])
@@ -349,7 +349,7 @@ def test_active_mo_measurement_stays_strict_with_tolerant_baseline(baseline_run,
     ns, RE, docs = baseline_run
     if offline == "all":
         _disconnect_mo(ns)
-        failed_signal = ns["mo_generator"].shutter
+        failed_signal = ns["mo_generator"].voltage
     else:
         failed_signal = getattr(ns["mo_generator"], offline)
         failed_signal.online = False
@@ -357,9 +357,9 @@ def test_active_mo_measurement_stays_strict_with_tolerant_baseline(baseline_run,
     with pytest.raises(DisconnectedError, match=failed_signal.name):
         RE(measure_yzstage(config_id=223, root_path=tmp_path.as_posix(), namespace=ns))
 
-    assert ns["mo_generator"].shutter.set_attempts == [1, 0]
-    assert [doc["exit_status"] for name, doc in docs if name == "stop"] == ["fail"]
-    assert len(_baseline_events(docs)) == 2
+    assert ns["mo_generator"].shutter.set_attempts == []
+    assert docs == []
+    assert _baseline_events(docs) == []
     assert not list(tmp_path.rglob("COMPLETE"))
 
 

@@ -87,14 +87,14 @@ def build_startup_namespace(
         namespace["cu_generator"] = SimpleNamespace(
             name="cu_generator",
             shutter=Signal(name="cu_shutter", value=0),
-            voltage=Signal(name="cu_voltage", value=45.0),
-            current=Signal(name="cu_current", value=24.5),
+            voltage=Signal(name="cu_voltage", value=5000),
+            current=Signal(name="cu_current", value=60),
         )
         namespace["mo_generator"] = SimpleNamespace(
             name="mo_generator",
             shutter=Signal(name="mo_shutter", value=0),
-            voltage=Signal(name="mo_voltage", value=50.0),
-            current=Signal(name="mo_current", value=22.0),
+            voltage=Signal(name="mo_voltage", value=5000),
+            current=Signal(name="mo_current", value=100),
         )
     if include_sensors:
         namespace["pressure_gauge"] = SimpleNamespace(pressure=Signal(name="pressure", value=1.2))

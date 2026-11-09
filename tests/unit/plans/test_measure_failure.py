@@ -122,7 +122,7 @@ def test_success_uses_only_strict_shutter_close_and_writes_complete(rig):
     rig.RE(rig.plan())
 
     assert rig.shutter.writes == [1, 0]
-    assert rig.shutter.timeouts == [None, None]
+    assert rig.shutter.timeouts == [shutter_plans.SHUTTER_SET_TIMEOUT_S, shutter_plans.SHUTTER_SET_TIMEOUT_S]
     assert rig.shutter.get() == 0
     assert rig.stop_doc["exit_status"] == "success"
     start = next(doc for name, doc in rig.docs if name == "start")
@@ -202,7 +202,7 @@ def test_failed_strict_close_fails_measurement_and_retries_once(rig):
     assert exc.value is rig.shutter.close_error
     assert len(rig.exposures) == 3
     assert rig.shutter.writes == [1, 0, 0]
-    assert rig.shutter.timeouts == [None, None, 0.03]
+    assert rig.shutter.timeouts == [shutter_plans.SHUTTER_SET_TIMEOUT_S, shutter_plans.SHUTTER_SET_TIMEOUT_S, 0.03]
     assert rig.shutter.get() == 0
     rig.assert_failed(rig.shutter.close_error)
 
