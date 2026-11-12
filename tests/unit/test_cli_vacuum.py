@@ -51,7 +51,7 @@ def command_args(command, *options):
 def test_commands_enqueue_only_with_shared_options(queue_stub, capsys, command, options, position):
     calls, _ = queue_stub
     with pytest.raises(SystemExit) as exc:
-        cli.main(command_args(command, *options))
+        cli.main(command_args(command, *(["--enqueue-only"] if command != "enqueue" else []), *options))
     assert exc.value.code == 0
     assert len(calls) == 1
     specs, target, submitted_position = calls[0]
@@ -72,6 +72,7 @@ def test_commands_accept_target_and_identity(queue_stub, capsys, command):
         cli.main(
             command_args(
                 command,
+                *(["--enqueue-only"] if command != "enqueue" else []),
                 "--zmq",
                 "tcp://example.invalid:60615",
                 "--user",
@@ -102,7 +103,7 @@ def test_rejected_items_have_nonzero_exit_and_preserve_enqueue_output(queue_stub
     _, responses = queue_stub
     responses[:] = [response]
     with pytest.raises(SystemExit) as exc:
-        cli.main(command_args(command))
+        cli.main(command_args(command, *(["--enqueue-only"] if command != "enqueue" else [])))
     assert exc.value.code == 1
     assert capsys.readouterr().out == "Queue add failed for 1 item(s):\n[1] msg=refused\ndetails\n"
 

@@ -67,13 +67,42 @@ After deploying these plans, close and reopen the Queue Server environment so
 
 ```bash
 ./evacuate.sh
-./ventilate.sh --prioritize
+./ventilate.sh
 ```
 
-The scripts only enqueue one item; start the queue separately. Both default to
-the back of the queue. `--prioritize` inserts at the front, and the scripts
-forward other CLI options such as `--zmq`, `--position`, `--user` and `--user-group`.
+The Queue Server must be idle with an open worker environment. Each command
+inserts its plan at the front followed immediately by a `queue_stop` instruction,
+then starts the queue. After the plan, the instruction is consumed and the queue
+stops, leaving all existing measurements in their original order. If the queue
+is not idle, the command refuses without adding anything: stop the queue, wait
+until it is idle, then run the command again.
+
+`--prioritize` and `--position front` are accepted in this default mode and
+do not change its behavior. `--position back` requires `--enqueue-only`, which
+only enqueues the plan, without adding a stop or starting the queue. In that
+mode the default position is the back, and `--position` and `--prioritize` work
+as before. For example, `./ventilate.sh --enqueue-only` queues ventilation after
+an overnight measurement queue.
+
+The scripts forward CLI options such as `--zmq`, `--user`, `--user-group` and
+`--quiet` in both modes. Quiet suppresses success output, but errors are printed.
 The equivalent commands are `mouse-bluesky evacuate` and `mouse-bluesky ventilate`.
+
+For a sample rack change:
+
+```bash
+qserver queue stop
+# Wait until the current measurement finishes and the manager is idle.
+./ventilate.sh
+# Wait for ventilation to finish, then change the rack.
+./evacuate.sh
+# Wait for evacuation to finish, then continue the measurements.
+qserver queue start
+```
+
+If a vacuum plan fails, the queue stops at the failure and leaves the
+`queue_stop` instruction at the front. The next start then stops again
+immediately, so remove the instruction or start twice to continue.
 
 Both plans resolve the required devices and read detector position, pressure
 and valve outputs before any write. A failed pre-flight read or non-finite

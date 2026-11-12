@@ -173,9 +173,32 @@ mouse-bluesky enqueue /path/to/logbook.xlsx /path/to/projects --zmq tcp://127.0.
   attributes are handled gracefully and their messages are surfaced when requests
   fail.
 
-Vacuum scripts `./evacuate.sh` and `./ventilate.sh` enqueue one plan; start the
-queue separately. Add `--prioritize` to insert at the front. After deploying,
-close and reopen the Queue Server environment to load the new plans.
+Vacuum scripts `./evacuate.sh` and `./ventilate.sh` require an idle Queue Server
+with an open worker environment. They insert the plan at the front followed by
+a `queue_stop` instruction, then start the queue. The queue stops after the plan,
+leaving existing measurements in their original order. If the queue is not idle,
+the command refuses without adding anything. `--prioritize` and `--position front`
+are accepted; `--position back` requires `--enqueue-only`. Use `--enqueue-only`
+to enqueue without adding a stop or starting the queue; this defaults to the back
+and supports `--position` and `--prioritize` as before. After deploying, close and
+reopen the Queue Server environment to load the new plans.
+
+To change the sample rack:
+
+```bash
+qserver queue stop
+# Wait until the current measurement finishes and the manager is idle.
+./ventilate.sh
+# Wait for ventilation to finish, then change the rack.
+./evacuate.sh
+# Wait for evacuation to finish, then continue the measurements.
+qserver queue start
+```
+
+If a vacuum plan fails, the queue stops at the failure and leaves the
+`queue_stop` instruction at the front. The next start stops again immediately;
+remove that instruction or start twice to continue.
+
 Evacuation leaves the pump (`do6`) on, including after a failure once pumping
 has started. Ventilation closes `do7` when its valve sequence ends, including
 on failure, timeout, stop or abort. Shutter closes are best-effort: faults warn

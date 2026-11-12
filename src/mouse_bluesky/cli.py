@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from .planner.logbook2bluesky import QueueServerTarget, build_plan_specs_from_logbook, populate_queue
+from .planner.logbook2bluesky import QueueServerTarget, build_plan_specs_from_logbook, populate_queue, run_now_then_stop
 from .planner.models import PlanSpec
 from .planner.validate import validate_specs
 from .protocols.builtin import build_default_registry
@@ -156,10 +156,16 @@ def _report_queue_responses(responses, args: argparse.Namespace) -> int:
 
 
 def _cmd_vacuum(args: argparse.Namespace) -> int:
-    """Enqueue one vacuum plan without starting the queue."""
+    """Run a vacuum plan then stop, or enqueue it for later execution."""
     target = QueueServerTarget(zmq_control_addr=args.zmq, user=args.user, user_group=args.user_group)
-    responses = populate_queue([PlanSpec(name=args.cmd)], target=target, position=args.position)
-    return _report_queue_responses(responses, args)
+    if args.enqueue_only:
+        responses = populate_queue([PlanSpec(name=args.cmd)], target=target, position=args.position or "back")
+        return _report_queue_responses(responses, args)
+    if not run_now_then_stop(args.cmd, target=target):
+        return 1
+    if not args.quiet:
+        print(f"Started {args.cmd} at the front of the queue on {args.zmq}; the queue will stop after it.")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -204,11 +210,17 @@ def main(argv: list[str] | None = None) -> None:
     p_enq.set_defaults(func=_cmd_enqueue)
 
     for name in ("evacuate", "ventilate"):
-        p_vacuum = sub.add_parser(name, help=f"Enqueue the {name} plan without starting the queue")
+        description = f"Run {name} at the front of an idle queue, then stop the queue"
+        p_vacuum = sub.add_parser(name, help=description, description=description)
         add_queue_options(p_vacuum)
+        p_vacuum.add_argument(
+            "--enqueue-only", action="store_true", help="Only enqueue the plan; do not add a stop or start the queue"
+        )
         p_vacuum.add_argument("-q", "--quiet", action="store_true", help="Less output")
-        p_vacuum.set_defaults(func=_cmd_vacuum)
+        p_vacuum.set_defaults(func=_cmd_vacuum, position=None)
 
     ns = p.parse_args(argv)
+    if ns.cmd in ("evacuate", "ventilate") and not ns.enqueue_only and ns.position == "back":
+        p.error("--position back requires --enqueue-only for vacuum commands")
     rc = int(ns.func(ns))
     raise SystemExit(rc)

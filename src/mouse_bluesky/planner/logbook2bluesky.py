@@ -63,22 +63,27 @@ def build_plan_specs(
     return out
 
 
-def _queue_item_add_request(*, payload: Mapping[str, Any], zmq_control_addr: str) -> dict[str, Any]:
-    """Submit one `queue_item_add` request with keyword compatibility for test stubs."""
+def _queue_request(method: str, *, params: Mapping[str, Any] | None = None, zmq_control_addr: str) -> Any:
+    """Submit a request using either supported control-address keyword."""
     try:
         return zmq_single_request(
-            method="queue_item_add",
-            params=payload,
+            method=method,
+            params=params,
             zmq_control_addr=zmq_control_addr,
         )
     except TypeError as exc:
         if "zmq_control_addr" not in str(exc):
             raise
         return zmq_single_request(
-            method="queue_item_add",
-            params=payload,
+            method=method,
+            params=params,
             zmq_server_address=zmq_control_addr,
         )
+
+
+def _queue_item_add_request(*, payload: Mapping[str, Any], zmq_control_addr: str) -> Any:
+    """Submit one `queue_item_add` request with keyword compatibility for test stubs."""
+    return _queue_request("queue_item_add", params=payload, zmq_control_addr=zmq_control_addr)
 
 
 def populate_queue(
@@ -101,6 +106,57 @@ def populate_queue(
         }
         responses.append(_queue_item_add_request(payload=payload, zmq_control_addr=target.zmq_control_addr))
     return responses
+
+
+def _remove_run_now_items(items: Sequence[Mapping[str, Any]], *, target: QueueServerTarget) -> None:
+    """Remove the stop only after confirming the plan was removed."""
+    for item, label in zip(items, ("plan", "queue stop"), strict=True):
+        uid = item["item_uid"]
+        response, error = _queue_request(
+            "queue_item_remove", params={"uid": uid}, zmq_control_addr=target.zmq_control_addr
+        )
+        if error or not response or not response.get("success"):
+            reason = error or (response or {}).get("msg") or "request failed"
+            print(f"Could not remove {label} ({uid}): {reason}.")
+            print("The queue stop was left in place.")
+            return
+        print(f"Removed {label} ({uid}).")
+
+
+def run_now_then_stop(name: str, *, target: QueueServerTarget) -> bool:
+    """Start a plan followed by a queue stop, preserving queued measurements."""
+    status, error = _queue_request("status", zmq_control_addr=target.zmq_control_addr)
+    status = status or {}
+    state = status.get("manager_state", "unknown")
+    # The status endpoint has no `success` field in Queue Server 0.0.24.
+    if error or not status.get("success", True) or not status.get("worker_environment_exists") or state != "idle":
+        reason = error or status.get("msg") or "worker environment must exist and manager must be idle"
+        print(f"Refusing to run {name}: manager state={state}; {reason}.")
+        print("Stop the queue, wait until it is idle, then run the command again.")
+        return False
+
+    batch, error = _queue_request(
+        "queue_item_add_batch",
+        params={
+            "items": [PlanSpec(name=name).to_qs_item(), {"item_type": "instruction", "name": "queue_stop"}],
+            "pos": "front",
+            "user": target.user,
+            "user_group": target.user_group,
+        },
+        zmq_control_addr=target.zmq_control_addr,
+    )
+    if error or not batch or not batch.get("success"):
+        reason = error or (batch or {}).get("msg") or "request failed"
+        print(f"Queue batch add failed: {reason}.")
+        return False
+
+    started, error = _queue_request("queue_start", zmq_control_addr=target.zmq_control_addr)
+    if error or not started or not started.get("success"):
+        reason = error or (started or {}).get("msg") or "request failed"
+        print(f"Queue start failed: {reason}.")
+        _remove_run_now_items(batch["items"], target=target)
+        return False
+    return True
 
 
 def build_plan_specs_from_logbook(
