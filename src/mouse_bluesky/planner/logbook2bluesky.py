@@ -128,9 +128,19 @@ def run_now_then_stop(name: str, *, target: QueueServerTarget) -> bool:
     status, error = _queue_request("status", zmq_control_addr=target.zmq_control_addr)
     status = status or {}
     state = status.get("manager_state", "unknown")
-    # The status endpoint has no `success` field in Queue Server 0.0.24.
-    if error or not status.get("success", True) or not status.get("worker_environment_exists") or state != "idle":
-        reason = error or status.get("msg") or "worker environment must exist and manager must be idle"
+    # The status endpoint has no `success` field in Queue Server 0.0.24, and its `msg` is the
+    # server version, so it only explains a refusal when a request actually failed.
+    if error:
+        reason = f"no reply from the Queue Server ({error})"
+    elif not status.get("success", True):
+        reason = status.get("msg") or "status request failed"
+    elif not status.get("worker_environment_exists"):
+        reason = "the worker environment is not open"
+    elif state != "idle":
+        reason = "the manager is not idle"
+    else:
+        reason = None
+    if reason:
         print(f"Refusing to run {name}: manager state={state}; {reason}.")
         print("Stop the queue, wait until it is idle, then run the command again.")
         return False

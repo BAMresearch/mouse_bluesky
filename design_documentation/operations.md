@@ -100,9 +100,13 @@ qserver queue stop
 qserver queue start
 ```
 
-If a vacuum plan fails, the queue stops at the failure and leaves the
-`queue_stop` instruction at the front. The next start then stops again
-immediately, so remove the instruction or start twice to continue.
+If a vacuum plan fails or is aborted, the queue stops and Queue Server
+(0.0.24) puts the plan back at the front, still followed by the `queue_stop`
+instruction. The next start retries the plan and then stops again. To skip the
+retry, remove both the plan and the instruction. A plan ended with
+`qserver re stop` counts as finished and is not put back, so only the
+instruction stays at the front and the next start stops immediately. This was
+checked against a local Queue Server with dummy plans.
 
 Both plans resolve the required devices and read detector position, pressure
 and valve outputs before any write. A failed pre-flight read or non-finite

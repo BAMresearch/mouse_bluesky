@@ -107,6 +107,24 @@ def test_refuses_unavailable_queue(command, requests_stub, capsys, status, error
     assert "Stop the queue, wait until it is idle, then run the command again." in output
 
 
+@pytest.mark.parametrize(
+    "status, expected",
+    [
+        ({**IDLE, "worker_environment_exists": False}, "the worker environment is not open"),
+        ({**IDLE, "manager_state": "executing_queue"}, "the manager is not idle"),
+        ({**IDLE, "manager_state": "paused"}, "the manager is not idle"),
+    ],
+)
+def test_refusal_names_reason_not_server_version(command, requests_stub, capsys, status, expected):
+    # Real status replies carry the server version in `msg`.
+    stub = requests_stub([({**status, "msg": "RE Manager v0.0.24"}, "")])
+    assert invoke(command) == 1
+    assert stub.calls == [("status", None)]
+    output = capsys.readouterr().out
+    assert f"manager state={status['manager_state']}; {expected}." in output
+    assert "RE Manager v0.0.24" not in output
+
+
 @pytest.mark.parametrize("response", [({"success": False, "msg": "batch rejected"}, ""), (None, "timeout")])
 def test_batch_failure_does_not_start(command, requests_stub, capsys, response):
     stub = requests_stub([(IDLE, ""), response])
