@@ -183,6 +183,10 @@ to enqueue without adding a stop or starting the queue; this defaults to the bac
 and supports `--position` and `--prioritize` as before. After deploying, close and
 reopen the Queue Server environment to load the new plans.
 
+`./start-mouse-http-server.sh` provides authenticated read-only queue access for
+the remote dashboard. See [HTTP server operations](design_documentation/operations.md#http-server-read-only-queue-access)
+for environment setup, TLS, screen sessions and API keys.
+
 To change the sample rack:
 
 ```bash

@@ -60,6 +60,237 @@ Start the queue from the Queue Server UI/CLI.
 
 ## Runtime behavior
 
+### HTTP server (read-only queue access)
+
+`event-timeline-tiled` runs on another server and reads the MOUSE status and queue
+through `bluesky-httpserver==0.0.15`. Operators keep using the local ZMQ CLI and
+scripts, including enqueue, evacuation and ventilation. The HTTP server connects
+to `tcp://127.0.0.1:60615` (control) and `tcp://127.0.0.1:60625` (information), as
+configured in `qserver_profile/http_server/config.yml`.
+
+#### Environment, database and TLS
+
+Install the locked dependencies, activate the virtual environment, then create
+the private directories and environment file outside the repository:
+
+```bash
+install -d -m 700 "$HOME/.config/mouse-http-server" "$HOME/.local/share/mouse-http-server"
+touch "$HOME/.config/mouse-http-server/env"
+chmod 600 "$HOME/.config/mouse-http-server/env"
+```
+
+Edit that file locally with a private editor. It is sourced as Bash assignments,
+so quote values containing shell metacharacters. Set these variables (the example
+paths below must be adapted to the instrument account):
+
+| Variable | Value/purpose |
+|---|---|
+| `MOUSE_HTTP_READER_PASSWORD` | A generated, strong password for `timeline-reader`; required and nonempty. |
+| `MOUSE_HTTP_DATABASE_URI` | Required fixed URI, e.g. `sqlite:////home/<user>/.local/share/mouse-http-server/http_server.sqlite`. Four slashes denote an absolute SQLite path. |
+| `MOUSE_HTTP_HOST` | Defaults to `127.0.0.1`; set the instrument's lab interface address for the dashboard. |
+| `MOUSE_HTTP_PORT` | Defaults to `60610`. |
+| `MOUSE_HTTP_SSL_CERTFILE` | Absolute path to the site's trusted certificate/full chain, outside the repository, e.g. `/home/<user>/.config/mouse-http-server/tls/fullchain.pem`. |
+| `MOUSE_HTTP_SSL_KEYFILE` | Absolute path to its private key, e.g. `/home/<user>/.config/mouse-http-server/tls/key.pem`; restrict it to the instrument account (`chmod 600`). |
+
+The maintainer obtains the certificate, configures the lab interface and firewall,
+and creates the real password and key after deployment. The certificate must cover
+the hostname used by the dashboard, and its CA must be trusted there. Keep the TLS
+directory private and renew certificates before expiry. Uvicorn terminates TLS
+directly; there is no reverse proxy. Open the HTTP port only to the dashboard
+server in any firewall.
+
+Keep the database across restarts and back it up outside the repository. Stop the
+HTTP server before making a plain file copy, or use SQLite's online backup tool.
+The database stores identities and API key hashes; protect its directory and backups.
+Losing it invalidates the existing keys. Changing the login password does not
+revoke existing API keys: revoke those separately when rotating compromised credentials.
+
+`MOUSE_HTTP_ENV_FILE` can select another private environment file; otherwise the
+script reads `$HOME/.config/mouse-http-server/env`. It refuses missing/unreadable
+files and files readable by group or others, empty required variables, and any set
+`QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY` or
+`QSERVER_HTTP_SERVER_ALLOW_ANONYMOUS_ACCESS` (even an empty value). Unset these
+overrides in the launching shell as well as in the file. Always start through the
+script, since the library leaves an unset `${VARIABLE}` reference as literal text.
+
+A network listener requires both TLS paths to be set and readable. For a local
+check only, leave both TLS variables unset or empty and keep the host at
+`127.0.0.1` or `localhost`; the script exports empty paths, which disable uvicorn
+TLS. If either TLS path is supplied, both must be readable even on loopback.
+
+#### Start, stop and check
+
+From the repository, with its virtual environment active:
+
+```bash
+screen -S bluesky_http
+./start-mouse-http-server.sh
+# Detach with Ctrl-A, D.
+```
+
+The script locates its config relative to itself, so it also works from another
+working directory. To stop, reattach with `screen -r bluesky_http` and press Ctrl-C;
+this stops HTTP access without stopping the RE Manager. Restart the HTTP script
+after changing its environment or config. Never use `--public`.
+
+After creating the key below, check status with a private header file:
+
+```bash
+export MOUSE_HTTP_BASE_URL=https://instrument-hostname:60610
+curl --fail --silent --show-error \
+  --header @"$HOME/.config/mouse-http-server/dashboard.header" \
+  "$MOUSE_HTTP_BASE_URL/api/status"
+```
+
+The file contains one line, `Authorization: ApiKey ` followed by the key. Keep it
+mode `600`. The key stays out of command arguments and shell history. Use the
+site's CA trust (`curl --cacert /path/to/site-ca.pem` if needed); do not disable
+certificate verification. For a loopback check without TLS only, use
+`http://127.0.0.1:60610`. Avoid verbose HTTP logging, shell tracing and header dumps.
+
+#### Account and API keys
+
+There is one account, `timeline-reader`, authenticated by the `mouse` provider's
+`DictionaryAuthenticator`. `DictionaryAPIAccessControl` assigns it the custom
+`timeline_reader` role with exactly `read:status`, `read:queue` and `user:apikeys`.
+There are no operator or admin accounts. Both `unauthenticated_public` and
+`unauthenticated_single_user` roles have no scopes, so accidental public or
+single-user mode grants no queue access.
+
+The role needs `user:apikeys` because HTTP server 0.0.15 requires that scope to
+create and revoke one's own keys. The dashboard key itself has exactly
+`read:status` and `read:queue`: it cannot edit or start the queue, open the worker,
+read history or create more keys. Effective key scopes are intersected with the
+owner's current role scopes. Anyone holding the account password can create more
+read-only keys and revoke the account's keys; keep that password with the maintainer.
+Always specify the two scopes when creating a dashboard key; omitting scopes
+defaults to `inherit`, which also grants the role's key-management scope.
+
+Log in with `POST /api/auth/provider/mouse/token`, form fields `username` and
+`password`. Use the returned bearer token for `POST /api/auth/apikey` with:
+
+```json
+{"scopes": ["read:status", "read:queue"], "expires_in": null, "note": "event-timeline-tiled"}
+```
+
+For example, the following interactive Python session creates the key without
+printing the password, token or key. Run it from the activated environment on a
+trusted host. `MOUSE_HTTP_BASE_URL` must be the verified HTTPS URL (loopback HTTP is
+permitted for a local check). For a private CA with Requests, set
+`REQUESTS_CA_BUNDLE=/path/to/site-ca.pem` first.
+
+```python
+import getpass
+import os
+from pathlib import Path
+import requests
+
+base = os.environ["MOUSE_HTTP_BASE_URL"].rstrip("/")
+directory = Path.home() / ".config/mouse-http-server"
+directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+response = requests.post(
+    f"{base}/api/auth/provider/mouse/token",
+    data={"username": "timeline-reader", "password": getpass.getpass()},
+    timeout=15,
+)
+response.raise_for_status()
+token_header = {"Authorization": "Bearer " + response.json()["access_token"]}
+response = requests.post(
+    f"{base}/api/auth/apikey", headers=token_header,
+    json={"scopes": ["read:status", "read:queue"], "expires_in": None,
+          "note": "event-timeline-tiled"}, timeout=15,
+)
+response.raise_for_status()
+key = response.json()["secret"]
+def private_file(path):
+    return open(path, "x", opener=lambda path, flags: os.open(path, flags, 0o600))
+with private_file(directory / "dashboard.key") as stream:
+    stream.write(key + "\n")
+with private_file(directory / "dashboard.header") as stream:
+    stream.write("Authorization: ApiKey " + key + "\n")
+response = requests.get(
+    f"{base}/api/auth/apikey", headers={"Authorization": "ApiKey " + key}, timeout=15,
+)
+response.raise_for_status()
+print("Record first_eight:", response.json()["first_eight"])
+del key, token_header, response
+```
+
+Use fresh filenames for a rotation: this example refuses to overwrite existing
+files. The key has no expiry (`expires_in: null`); rotate it explicitly by creating
+a replacement, transferring it securely, updating and checking the dashboard,
+then revoking the old key. Transfer the raw `dashboard.key` to the dashboard
+operator through a secure channel. Never put any password, token or key in the
+repository, logs, a URL or a chat. Although the library accepts `api_key` query
+parameters and cookies, use only the `Authorization: ApiKey …` header.
+
+To inspect the current key and record its `first_eight`, use:
+
+```bash
+curl --fail --silent --show-error \
+  --header @"$HOME/.config/mouse-http-server/dashboard.header" \
+  "$MOUSE_HTTP_BASE_URL/api/auth/apikey"
+```
+
+This GET reports metadata for the supplied key; it does not list all the account's
+keys. Keep an inventory of `first_eight`, purpose and expiry. To revoke a key,
+log in again as `timeline-reader` and use the bearer token (not the dashboard key)
+for `DELETE /api/auth/apikey?first_eight=…`. The non-secret prefix can go in that
+URL; the full key must never go there. In a private Python session:
+
+```python
+import getpass
+import os
+import requests
+
+base = os.environ["MOUSE_HTTP_BASE_URL"].rstrip("/")
+response = requests.post(
+    f"{base}/api/auth/provider/mouse/token",
+    data={"username": "timeline-reader", "password": getpass.getpass()}, timeout=15,
+)
+response.raise_for_status()
+token_header = {"Authorization": "Bearer " + response.json()["access_token"]}
+response = requests.delete(
+    f"{base}/api/auth/apikey", headers=token_header,
+    params={"first_eight": input("Key first_eight to revoke: ").strip()}, timeout=15,
+)
+response.raise_for_status()
+del response, token_header
+```
+
+Revocation is limited to the logged-in account's own keys. Confirm that the
+revoked key subsequently returns `401`, then remove its private local files.
+
+#### Maintainer's after-deployment checklist
+
+These checks require the instrument and another host. They are deliberately
+outside the repository tests:
+
+1. Check whether any other computer uses ZMQ ports 60615/60625. Record each user
+   or service and arrange HTTP access with its own account before deploying the
+   separate loopback-binding commit. Additional accounts need explicit roles.
+2. Provision the environment file, persistent database, trusted certificate and
+   private key; restrict firewall access to the dashboard server. Start the HTTP
+   screen session and create the two-scope dashboard key.
+3. From the dashboard host over verified HTTPS, confirm `GET /api/status` and
+   `GET /api/queue/get` return `200` with the dashboard key.
+4. With that key, confirm `POST /api/queue/item/add`, `POST /api/queue/start`,
+   `POST /api/environment/open`, `GET /api/history/get` and
+   `POST /api/auth/apikey` are refused with `401` or `403`. Missing or wrong keys
+   must give `401` for both read routes. A revoked key must also give `401`.
+5. Once remote ZMQ users have been checked/migrated, deploy the separate
+   loopback-binding commit and restart the RE Manager at an operator-approved
+   time. From another host, verify ports 60615 and 60625 do not answer. Locally
+   verify `mouse-bluesky enqueue …`, `evacuate.sh` and `ventilate.sh` still work
+   over `tcp://127.0.0.1:60615`, scheduling hardware actions with the operator.
+6. Report the lab HTTPS URL (hostname and port), certificate issuer,
+   `bluesky-httpserver` version (`0.0.15`), provider (`DictionaryAuthenticator`),
+   key scopes, no expiry and `first_eight`, and whether any remote ZMQ users
+   existed. Send the full key only over the secure channel.
+7. On the dashboard server, configure `ETT_QUEUES=MOUSE=http:https://<host>:<port>`
+   and `ETT_QUEUE_MOUSE_API_KEY_FILE` pointing to the private raw key file, then
+   run event-timeline-tiled's live queue-panel check.
+
 ### Vacuum plans
 
 After deploying these plans, close and reopen the Queue Server environment so

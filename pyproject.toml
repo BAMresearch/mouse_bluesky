@@ -16,6 +16,7 @@ classifiers = [
 dependencies = [
   "attrs>=23.2.0",
   "bluesky>=1.11",
+  "bluesky-httpserver==0.0.15",
   "bluesky-queueserver>=0.0.24",   # you are using 0.0.24; align
   "h5py>=3.8",
   "ophyd>=1.7",
