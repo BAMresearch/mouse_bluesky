@@ -11,6 +11,8 @@ from typing import Any
 import bluesky.plans as bp
 from bluesky import preprocessors as bpp
 
+from mouse_bluesky.identity import refuse_identity_keys
+
 from .exposure import DEFAULT_EIGER_OUTPUT_PATH, configure_detectors_exposure
 from .runtime import coerce_uid, resolve_default_detector, resolve_detector_field, resolve_run_engine
 
@@ -77,6 +79,7 @@ def ct(
     md: Mapping[str, Any] | None = None,
 ) -> Any:
     """Run a quick one-shot exposure and return the measured detector counts."""
+    refuse_identity_keys(md)
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)
@@ -105,6 +108,7 @@ def test_measure(
     md: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Collect one measurement, persist documents to a temporary file, and optionally plot."""
+    refuse_identity_keys(md)
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)

@@ -91,6 +91,31 @@ signals for `SupplementalData.baseline`:
 
 Duplicate signal objects are removed while preserving order.
 
+## Run identity metadata
+
+Every MOUSE run's start document carries `facility="BAM"` and
+`instrument="MOUSE"` (case-sensitive). `station` is absent because MOUSE has
+one set-up. The values are defined in `mouse_bluesky.identity.RUN_IDENTITY`
+and applied by `configure_run_identity(RE)` in the Queue Server start-up
+file `01_re.py`.
+
+The RunEngine metadata validator enforces these values and the absence of
+`station` on every run, while preserving the existing metadata validator.
+Callers cannot supply `facility`, `instrument` or `station`, even with
+matching values. `measure_yzstage` and the interactive entry points
+`peak_scan`, `valley_scan`, `edge_scan`, `capillary_scan`, `ct` and
+`test_measure` refuse these keys before reads, detector configuration or
+directory creation.
+
+Any other RunEngine writing MOUSE runs to Tiled, including a notebook or
+interactive session, must call
+`mouse_bluesky.identity.configure_run_identity(RE)` before running plans.
+
+The timeline also relies on start metadata `sampleid`, `plan_name` and
+`activity`, stop metadata `exit_status`, `reason` and `num_events`, and the
+stream names `baseline`, `snapshot` and `mouse_eiger_measure`. These keys
+and stream names must not change.
+
 ## Snapshot vs baseline
 
 - Baseline: configured once at RE level; produces the `baseline` stream.

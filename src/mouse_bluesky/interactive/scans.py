@@ -11,6 +11,8 @@ from bluesky.callbacks import LiveTable
 from bluesky.callbacks.fitting import LiveFit, PeakStats
 from bluesky.callbacks.mpl_plotting import LivePlot
 
+from mouse_bluesky.identity import refuse_identity_keys
+
 from .defaults import (
     DEFAULT_EDGE_DIRECTION,
     DEFAULT_EDGE_FORM,
@@ -149,6 +151,7 @@ def peak_scan(
     Extended:
         ``peak_scan(motor, -1.0, 1.0, 41, 0.2)``
     """
+    refuse_identity_keys(md)
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)
@@ -233,6 +236,7 @@ def valley_scan(
     Extended:
         ``valley_scan(motor, -1.0, 1.0, 41, 0.2)``
     """
+    refuse_identity_keys(md)
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)
@@ -317,6 +321,7 @@ def edge_scan(
     Extended:
         ``edge_scan(motor, -1.0, 1.0, 41, 0.2)``
     """
+    refuse_identity_keys(md)
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)
@@ -393,6 +398,7 @@ def capillary_scan(
     Extended:
         ``capillary_scan(motor, -1.0, 1.0, 61, 0.2)``
     """
+    refuse_identity_keys(md)
     resolved_RE = resolve_run_engine(RE)
     detectors = resolve_default_detector(dets)
     y_name = resolve_detector_field(detectors, detector_field)

@@ -7,6 +7,7 @@ from typing import Mapping
 from bluesky import preprocessors as bpp
 
 from mouse_bluesky.devices.eiger import ad_configure_energy
+from mouse_bluesky.identity import refuse_identity_keys
 from mouse_bluesky.settings import Settings
 
 from .atomic import measure_yzstage_atomic
@@ -109,6 +110,7 @@ def measure_yzstage(
     Pausing leaves the shutter open; halt, worker crash or power loss skips
     cleanup. A failed best-effort close warns that the shutter is unconfirmed.
     """
+    refuse_identity_keys(md)
     if root_path is None:
         root_path = Settings.from_env().root_path.as_posix()
     ymd = _resolve_measurement_ymd(ymd)
