@@ -68,6 +68,12 @@ scripts, including enqueue, evacuation and ventilation. The HTTP server connects
 to `tcp://127.0.0.1:60615` (control) and `tcp://127.0.0.1:60625` (information), as
 configured in `qserver_profile/http_server/config.yml`.
 
+`start-mouse-re-manager.sh` binds both RE Manager ZMQ listeners only to loopback.
+This takes effect at the next RE Manager restart. Keep that separate commit out
+of deployment until the maintainer has checked for remote ZMQ users. Remote
+control or monitoring must go through the HTTP server with its own account and
+the scopes needed by that client; the dashboard account remains read-only.
+
 #### Environment, database and TLS
 
 Install the locked dependencies, activate the virtual environment, then create

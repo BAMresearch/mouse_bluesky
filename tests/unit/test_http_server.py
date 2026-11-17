@@ -310,3 +310,30 @@ def test_launcher_network_tls(launcher, tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert args_file.read_text().splitlines() == ["--config_path", str(CONFIG), "--host", "192.0.2.1", "--port", "9443"]
+
+
+def test_re_manager_launcher_binds_loopback_and_preserves_arguments(tmp_path):
+    fake = tmp_path / "start-re-manager"
+    fake.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$HTTP_TEST_ARGS"\n')
+    fake.chmod(0o755)
+    args_file = tmp_path / "args"
+    subprocess.run(
+        [str(ROOT / "start-mouse-re-manager.sh")],
+        cwd=tmp_path,
+        env={"PATH": str(tmp_path), "HTTP_TEST_ARGS": str(args_file)},
+        check=True,
+    )
+    assert args_file.read_text().splitlines() == [
+        "--ipython-dir",
+        "/home/ws8665-epics/code/mouse_bluesky/qserver_profile",
+        "--startup-profile",
+        "mouse",
+        "--use-ipython-kernel",
+        "ON",
+        "--ipython-matplotlib",
+        "qt6",
+        "--zmq-control-addr",
+        "tcp://127.0.0.1:60615",
+        "--zmq-info-addr",
+        "tcp://127.0.0.1:60625",
+    ]
