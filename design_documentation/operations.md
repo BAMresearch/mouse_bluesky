@@ -69,8 +69,10 @@ to `tcp://127.0.0.1:60615` (control) and `tcp://127.0.0.1:60625` (information), 
 configured in `qserver_profile/http_server/config.yml`.
 
 `start-mouse-re-manager.sh` binds both RE Manager ZMQ listeners only to loopback.
-This takes effect at the next RE Manager restart. Keep that separate commit out
-of deployment until the maintainer has checked for remote ZMQ users. Remote
+This takes effect at the next RE Manager restart. The queue is only controlled
+from the instrument PC itself (checked 2026-11-17), so nothing else needs these
+ports. The info port 60625 is only opened when console publishing is enabled;
+the HTTP server's status and queue reads do not need it. Any future remote
 control or monitoring must go through the HTTP server with its own account and
 the scopes needed by that client; the dashboard account remains read-only.
 
@@ -272,28 +274,25 @@ revoked key subsequently returns `401`, then remove its private local files.
 These checks require the instrument and another host. They are deliberately
 outside the repository tests:
 
-1. Check whether any other computer uses ZMQ ports 60615/60625. Record each user
-   or service and arrange HTTP access with its own account before deploying the
-   separate loopback-binding commit. Additional accounts need explicit roles.
-2. Provision the environment file, persistent database, trusted certificate and
+1. Provision the environment file, persistent database, trusted certificate and
    private key; restrict firewall access to the dashboard server. Start the HTTP
    screen session and create the two-scope dashboard key.
-3. From the dashboard host over verified HTTPS, confirm `GET /api/status` and
+2. From the dashboard host over verified HTTPS, confirm `GET /api/status` and
    `GET /api/queue/get` return `200` with the dashboard key.
-4. With that key, confirm `POST /api/queue/item/add`, `POST /api/queue/start`,
+3. With that key, confirm `POST /api/queue/item/add`, `POST /api/queue/start`,
    `POST /api/environment/open`, `GET /api/history/get` and
    `POST /api/auth/apikey` are refused with `401` or `403`. Missing or wrong keys
    must give `401` for both read routes. A revoked key must also give `401`.
-5. Once remote ZMQ users have been checked/migrated, deploy the separate
-   loopback-binding commit and restart the RE Manager at an operator-approved
-   time. From another host, verify ports 60615 and 60625 do not answer. Locally
+4. Restart the RE Manager at an operator-approved time so the loopback binding
+   takes effect. `ss -tln | grep -E ':606(15|25)'` must show `127.0.0.1`, not
+   `0.0.0.0`, and from another host the ports must not answer. Locally
    verify `mouse-bluesky enqueue …`, `evacuate.sh` and `ventilate.sh` still work
    over `tcp://127.0.0.1:60615`, scheduling hardware actions with the operator.
-6. Report the lab HTTPS URL (hostname and port), certificate issuer,
+5. Report the lab HTTPS URL (hostname and port), certificate issuer,
    `bluesky-httpserver` version (`0.0.15`), provider (`DictionaryAuthenticator`),
-   key scopes, no expiry and `first_eight`, and whether any remote ZMQ users
-   existed. Send the full key only over the secure channel.
-7. On the dashboard server, configure `ETT_QUEUES=MOUSE=http:https://<host>:<port>`
+   key scopes, no expiry and `first_eight`. Send the full key only over the
+   secure channel.
+6. On the dashboard server, configure `ETT_QUEUES=MOUSE=http:https://<host>:<port>`
    and `ETT_QUEUE_MOUSE_API_KEY_FILE` pointing to the private raw key file, then
    run event-timeline-tiled's live queue-panel check.
 
