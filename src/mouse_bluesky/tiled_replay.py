@@ -42,7 +42,13 @@ def is_complete(run: Any, documents: list[Document]) -> bool:
     if not stops or not run.metadata.get("stop"):
         return False
     for stream, count in (stops[0].get("num_events") or {}).items():
-        if count and (stream not in run or run[stream].read()["time"].size != count):
+        if stream not in run:
+            if count:
+                return False
+            continue
+        time = run[stream].read().get("time")
+        rows = 0 if time is None else time.size
+        if rows != count:
             return False
     return True
 

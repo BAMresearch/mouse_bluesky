@@ -146,6 +146,73 @@ def test_complete_run_is_skipped_and_moved(tmp_path, rig):
     assert "already complete" in lines[0]
 
 
+def test_zero_event_stream_with_rows_is_not_complete(tmp_path, rig):
+    client, calls, lines, replay = rig
+    preload(client, run_documents(primary=1))
+    path = write_backup(tmp_path / "a.jsonl", run_documents(primary=0))
+
+    assert replay() == 1
+    assert path.exists()
+    assert client.deleted == []
+    assert "partly in Tiled" in lines[0]
+
+
+def test_complete_run_with_zero_event_stream_is_moved(tmp_path, rig):
+    client, calls, lines, replay = rig
+    docs = run_documents(primary=0)
+    preload(client, docs)
+    path = write_backup(tmp_path / "a.jsonl", docs)
+
+    assert replay() == 0
+    assert not path.exists()
+    assert calls == []
+    assert client.deleted == []
+
+
+def test_descriptor_only_stream_has_no_time_variable(tmp_path, rig):
+    client, calls, lines, replay = rig
+    docs = run_documents(primary=0)
+    preload(client, docs)
+    client[UID]["primary"].read = lambda: {}
+    path = write_backup(tmp_path / "a.jsonl", docs)
+
+    assert replay() == 0
+    assert not path.exists()
+    assert calls == []
+
+
+def test_absent_zero_event_stream_is_complete(tmp_path, rig):
+    client, calls, lines, replay = rig
+    docs = run_documents(primary=0)
+    preload(client, docs)
+    del client[UID].streams["primary"]
+    path = write_backup(tmp_path / "a.jsonl", docs)
+
+    assert replay() == 0
+    assert not path.exists()
+    assert calls == []
+
+
+def test_event_page_counts_rows_and_snapshot_is_checked(tmp_path, rig):
+    client, calls, lines, replay = rig
+    docs = [
+        ("start", {"uid": UID}),
+        ("descriptor", {"uid": "d-primary", "name": "primary"}),
+        ("descriptor", {"uid": "d-snapshot", "name": "snapshot"}),
+        ("event_page", {"descriptor": "d-primary", "seq_num": [1, 2, 3]}),
+        ("event_page", {"descriptor": "d-snapshot", "seq_num": [1]}),
+        ("stop", {"num_events": {"primary": 3, "snapshot": 1}}),
+    ]
+    preload(client, docs[:4] + docs[-1:])
+    path = write_backup(tmp_path / "a.jsonl", docs)
+
+    assert replay() == 1
+    assert path.exists()
+    assert replay(replace_partial=True) == 0
+    assert client[UID]["primary"].rows == 3
+    assert client[UID]["snapshot"].rows == 1
+
+
 @pytest.mark.parametrize(
     "in_tiled",
     [
