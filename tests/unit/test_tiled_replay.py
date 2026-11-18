@@ -300,6 +300,58 @@ def test_backup_without_stop_is_replayed_with_flag(tmp_path, rig):
     assert lines[0].endswith("(the backup has no stop document: the run never finished)")
 
 
+def test_real_writer_persists_unfinished_events_before_archiving(tmp_path):
+    from event_model import compose_run
+
+    class Table:
+        def __init__(self):
+            self.rows = []
+
+        def append_partition(self, table, partition):
+            self.rows.extend(table.to_pylist())
+
+    class Container:
+        def __init__(self, key="root", metadata=None):
+            self.item = {"id": key}
+            self.metadata = metadata or {}
+            self.children = {}
+            self.base = self
+
+        def include_data_sources(self):
+            return self
+
+        def __contains__(self, key):
+            return key in self.children
+
+        def __getitem__(self, key):
+            return self.children[key]
+
+        def create_container(self, *, key, metadata, **kwargs):
+            self.children[key] = child = Container(key, metadata)
+            return child
+
+        def create_appendable_table(self, *, key, **kwargs):
+            self.children[key] = table = Table()
+            return table
+
+    run = compose_run()
+    descriptor = run.compose_descriptor(
+        name="primary",
+        data_keys={"counts": {"source": "SIM", "dtype": "number", "shape": []}},
+        object_keys={"det": ["counts"]},
+    )
+    event = descriptor.compose_event(data={"counts": 42.0}, timestamps={"counts": 1.0})
+    path = write_backup(
+        tmp_path / "unfinished.jsonl",
+        [("start", run.start_doc), ("descriptor", descriptor.descriptor_doc), ("event", event)],
+    )
+    client = Container()
+
+    assert replay_backups([path], client, include_unfinished=True) == 0
+    assert client[run.start_doc["uid"]]["primary"]["internal"].rows[0]["counts"] == 42.0
+    assert not path.exists()
+
+
 def test_in_progress_backup_is_not_touched_even_if_run_is_partly_in_tiled(tmp_path, rig):
     client, calls, lines, replay = rig
     preload(client, run_documents(primary=1, stop=False))

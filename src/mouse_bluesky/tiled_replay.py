@@ -69,7 +69,8 @@ def _move_to_replayed(path: Path) -> Path:
 def _default_writer_factory(client: Any) -> Callable[[str, dict[str, Any]], Any]:
     from bluesky.callbacks.tiled_writer import TiledWriter
 
-    return TiledWriter(client)
+    # Unfinished backups have no stop document to flush the writer's event cache.
+    return TiledWriter(client, batch_size=1)
 
 
 def replay_file(
