@@ -274,6 +274,38 @@ def test_unreadable_backup_is_left_in_place(tmp_path, rig, content):
     assert "left in place" in lines[0]
 
 
+@pytest.mark.parametrize("start", [{}, None, {"uid": []}])
+def test_malformed_start_does_not_stop_the_batch(tmp_path, rig, start):
+    client, calls, lines, replay = rig
+    bad_docs = [("start", start), run_documents()[-1]]
+    bad = write_backup(tmp_path / "a.jsonl", bad_docs)
+    good = write_backup(tmp_path / "b.jsonl", run_documents())
+
+    assert replay() == 1
+    assert bad.exists()
+    assert not good.exists()
+    assert UID in client
+
+
+def test_archive_failure_does_not_stop_the_batch(tmp_path, rig, monkeypatch):
+    client, calls, lines, replay = rig
+    bad = write_backup(tmp_path / "a.jsonl", run_documents(uid="a-run"))
+    good = write_backup(tmp_path / "b.jsonl", run_documents(uid="b-run"))
+    rename = type(bad).rename
+
+    def fail_first_move(self, target):
+        if self == bad:
+            raise PermissionError("archive is read-only")
+        return rename(self, target)
+
+    monkeypatch.setattr(type(bad), "rename", fail_first_move)
+
+    assert replay() == 1
+    assert bad.exists()
+    assert not good.exists()
+    assert "archive is read-only" in lines[0]
+
+
 def test_replayed_file_never_overwrites_an_earlier_one(tmp_path, rig):
     client, calls, lines, replay = rig
     (tmp_path / REPLAYED_DIRNAME).mkdir()

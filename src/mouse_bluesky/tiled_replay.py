@@ -144,14 +144,18 @@ def replay_backups(
         return 0
     left = 0
     for path in files:
-        done = replay_file(
-            path,
-            client,
-            replace_partial=replace_partial,
-            include_unfinished=include_unfinished,
-            writer_factory=writer_factory,
-            log=log,
-        )
+        try:
+            done = replay_file(
+                path,
+                client,
+                replace_partial=replace_partial,
+                include_unfinished=include_unfinished,
+                writer_factory=writer_factory,
+                log=log,
+            )
+        except Exception as error:  # noqa: BLE001 - isolate validation and archive errors too
+            log(f"{path.name}: replay failed ({type(error).__name__}: {error}); left in place")
+            done = False
         if not done:
             left += 1
     return left
