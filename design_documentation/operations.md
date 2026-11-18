@@ -488,12 +488,18 @@ means the `*.jsonl` files directly inside it. Each file is handled on its own:
   key allowed to delete; otherwise ask the Tiled administrator to delete the run
   and replay without the flag;
 - unreadable file, or a write Tiled refuses: reported, left in place, and the
-  other files are still handled.
-
+  other files are still handled. A backup is unreadable when a line is not
+  valid JSON. TiledWriter writes the backup with plain JSON, so a document
+  holding a value JSON cannot store, such as a numpy array, corrupts the file
+  and that run cannot be replayed. This is why `ad_setup` leaves the Eiger ROI
+  time-series waveforms out of every reading;
 - no stop document: left in place. TiledWriter keeps appending to a run's backup
   until the run ends, even after Tiled is back, so the run may still be in
   progress. Replay it after the run has finished. Use `--include-unfinished` only
-  for a run that will never finish, for example after a worker crash.
+  for a run that will never finish, for example after a worker crash. Such a
+  backup is only written to Tiled when the run is not there at all. If the run is
+  partly in Tiled, it is left alone even with `--replace-partial`, because a
+  backup without a stop document cannot be shown to hold the whole run.
 
 A file in `replayed/` is never overwritten; a second copy gets a numbered name.
 The command exits 1 if any file was left in place, so it is safe to run again.
