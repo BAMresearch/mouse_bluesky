@@ -459,6 +459,45 @@ Interactive scans support:
 Runs are persisted via TiledWriter subscription configured in beamline startup.
 Each run’s metadata includes entry identifiers and configuration identifiers.
 
+#### Replaying backups after a Tiled outage
+
+`02_tiledwriter.py` gives TiledWriter a backup directory,
+`/home/ws8665-epics/data/tiled_backup_buffer`. If writing to Tiled fails during a
+run, the measurement carries on and every document of that run, from its start
+document on, is written to `<first part of the run uid>.jsonl` in that directory.
+The next run goes to Tiled again once it is reachable. Backup files are not sent
+to Tiled automatically. Once Tiled is back, run on the instrument PC:
+
+```bash
+mouse-bluesky tiled-replay ~/data/tiled_backup_buffer \
+  --uri https://tiled.scicat65.ddnss.de --api-key-file ~/.tiled_api.key
+```
+
+`--uri` defaults to the `TILED_URI` variable and `--api-key-file` to
+`~/.tiled_api.key`. The arguments can be backup files or directories; a directory
+means the `*.jsonl` files directly inside it. Each file is handled on its own:
+
+- run not in Tiled: written through a new TiledWriter, then the file is moved to
+  `replayed/` next to it;
+- run complete in Tiled (stop document present and, for each stream, as many
+  rows as the backup's stop document counts): not written again, and the file
+  is moved to `replayed/`;
+- run partly in Tiled (Tiled failed or recovered during the run): left alone and
+  reported. Run again with `--replace-partial` to delete the partial run and
+  write it from the backup, which always holds the whole run. That needs an API
+  key allowed to delete; otherwise ask the Tiled administrator to delete the run
+  and replay without the flag;
+- unreadable file, or a write Tiled refuses: reported, left in place, and the
+  other files are still handled.
+
+- no stop document: left in place. TiledWriter keeps appending to a run's backup
+  until the run ends, even after Tiled is back, so the run may still be in
+  progress. Replay it after the run has finished. Use `--include-unfinished` only
+  for a run that will never finish, for example after a worker crash.
+
+A file in `replayed/` is never overwritten; a second copy gets a numbered name.
+The command exits 1 if any file was left in place, so it is safe to run again.
+
 ## Failure modes & recovery
 
 - If a measurement fails:
@@ -489,5 +528,6 @@ The repository includes a small `mouse-bluesky` CLI:
 
 - `mouse-bluesky validate LOGBOOK PROJECTS_DIR` compiles and statically validates the planned queue.
 - `mouse-bluesky enqueue LOGBOOK PROJECTS_DIR` compiles, validates, and enqueues into a running Queue Server via the ZMQ control address.
+- `mouse-bluesky tiled-replay BACKUPS...` writes TiledWriter backup files into Tiled after an outage (see [Replaying backups after a Tiled outage](#replaying-backups-after-a-tiled-outage)).
 
 These commands are intended for operator workflows where you want fast feedback before running the instrument.

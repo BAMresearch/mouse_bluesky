@@ -168,6 +168,15 @@ mouse-bluesky enqueue /path/to/logbook.xlsx /path/to/projects --zmq tcp://127.0.
   --user mouse-bluesky --user-group primary
 ```
 
+- Replay TiledWriter backup files into Tiled after a Tiled outage:
+
+```bash
+mouse-bluesky tiled-replay ~/data/tiled_backup_buffer \
+  --uri https://tiled.scicat65.ddnss.de --api-key-file ~/.tiled_api.key
+```
+
+  See [Replaying backups after a Tiled outage](design_documentation/operations.md#replaying-backups-after-a-tiled-outage).
+
   The CLI now normalizes Queue Server responses before reporting failures, so tuple-
   shaped replies (e.g. `(success, message, traceback)`) or objects with `success`
   attributes are handled gracefully and their messages are surfaced when requests

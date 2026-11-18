@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -168,6 +169,32 @@ def _cmd_vacuum(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_tiled_replay(args: argparse.Namespace) -> int:
+    """Replay TiledWriter backup files into Tiled."""
+    from .tiled_replay import replay_backups
+
+    key_file = args.api_key_file.expanduser()
+    try:
+        api_key = key_file.read_text(encoding="utf-8").strip()
+    except OSError as error:
+        print(f"Cannot read the Tiled API key file {key_file}: {error.strerror or error}")
+        return 1
+    if not api_key:
+        print(f"The Tiled API key file {key_file} is empty.")
+        return 1
+
+    from tiled.client import from_uri
+
+    client = from_uri(args.uri, api_key=api_key)
+    left = replay_backups(
+        args.paths, client, replace_partial=args.replace_partial, include_unfinished=args.include_unfinished
+    )
+    if left:
+        print(f"{left} backup file(s) need attention; see above.")
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> None:
     """Run the `mouse-bluesky` CLI entrypoint."""
     p = argparse.ArgumentParser(prog="mouse-bluesky", description="MOUSE Bluesky planning + Queue Server utilities")
@@ -219,8 +246,34 @@ def main(argv: list[str] | None = None) -> None:
         p_vacuum.add_argument("-q", "--quiet", action="store_true", help="Less output")
         p_vacuum.set_defaults(func=_cmd_vacuum, position=None)
 
+    description = "Write TiledWriter backup files (.jsonl) into Tiled after an outage"
+    p_replay = sub.add_parser("tiled-replay", help=description, description=description)
+    p_replay.add_argument("paths", nargs="+", type=Path, help="Backup .jsonl files, or directories holding them")
+    p_replay.add_argument(
+        "--uri", default=os.environ.get("TILED_URI"), help="Tiled server URI (default: the TILED_URI variable)"
+    )
+    p_replay.add_argument(
+        "--api-key-file",
+        type=Path,
+        default=Path("~/.tiled_api.key"),
+        help="File holding the Tiled API key (default: ~/.tiled_api.key)",
+    )
+    p_replay.add_argument(
+        "--replace-partial",
+        action="store_true",
+        help="Delete a run that is only partly in Tiled and write it again from its backup",
+    )
+    p_replay.add_argument(
+        "--include-unfinished",
+        action="store_true",
+        help="Also replay backups without a stop document (a run that crashed and will never finish)",
+    )
+    p_replay.set_defaults(func=_cmd_tiled_replay)
+
     ns = p.parse_args(argv)
     if ns.cmd in ("evacuate", "ventilate") and not ns.enqueue_only and ns.position == "back":
         p.error("--position back requires --enqueue-only for vacuum commands")
+    if ns.cmd == "tiled-replay" and not ns.uri:
+        p.error("tiled-replay needs --uri or the TILED_URI variable")
     rc = int(ns.func(ns))
     raise SystemExit(rc)
