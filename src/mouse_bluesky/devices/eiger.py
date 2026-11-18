@@ -96,6 +96,10 @@ def ad_setup(det):
 
     det.roistat1_1.kind = "hinted"
     det.roistat1_1.total.kind = "hinted"
+    # Nothing uses the ROI time series. They are waveforms, and TiledWriter's JSON backup cannot store arrays.
+    for name in det.roistat1_1.component_names:
+        if name.startswith("ts_"):
+            getattr(det.roistat1_1, name).kind = "omitted"
 
     det.image.stage_sigs["blocking_callbacks"] = "No"
 
