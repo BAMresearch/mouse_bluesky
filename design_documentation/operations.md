@@ -522,23 +522,38 @@ hand if needed. See the [marker contract](contracts.md#ymd-complete-marker).
 The following is recommended guidance for a Rundeck job on the processing host;
 the job is not implemented in this repository:
 
-1. Run every few minutes, with concurrent executions disabled in Rundeck.
-2. Find `<share>/*/*/READY_FOR_PROCESSING.json`.
-3. Skip a YMD whose `marker_id` the pipeline has already processed. Keep this
-   state on the pipeline side, outside the synced data tree.
+1. Run every few minutes, with concurrent executions disabled in Rundeck and a
+   local lock held for the entire poll and processing run.
+2. Find `<share>/<YYYY>/<YYYYMMDD>/READY_FOR_PROCESSING.json`. The year folder
+   must have exactly four digits, and the YMD must be a real eight-digit calendar
+   date starting with that year. Ignore malformed folders, mismatched years and
+   the unresolved sentinel `20261232` silently.
+3. Skip a YMD whose current `marker_id` is recorded as `processed`, `failed`,
+   `interrupted` or `skipped`. Keep this state on the processing host, outside
+   the synced data tree.
 4. Call `check_marker` on that marker's parent YMD directory. If not ready, log
-   `problem`, `missing` and `size_mismatch`, then retry on the next poll. Alert
-   if it remains unready for a long time, for example 24 h.
-5. When ready, run the existing pipeline for that YMD. After successful
-   processing, record the checked `marker_id` as processed. A failed pipeline
-   must leave the marker eligible for retry.
+   `problem`, `missing` and `size_mismatch`, then check readiness again on the next
+   poll. Alert once if it remains unready for a long time, for example 24 h.
+5. When ready, record the checked `marker_id` as `running` before starting the
+   pipeline. Record the outcome as `processed` or `failed`. There is no automatic
+   retry after a processing failure; alert once for that failed attempt.
+6. If a poll holds the lock and finds a `running` state without `finished` for
+   the current marker, record it as `interrupted` and alert once. An interrupted
+   run is never restarted automatically: processing can take up to an hour.
+
+After inspecting a failed or interrupted run, request an explicit retry with
+`mouse-ymd-poller retry <YMD> --config /path/to/MOUSE_settings.yaml`. A new
+`marker_id` for the same YMD also makes it eligible for processing. Subsequent
+polls skip an already recorded failure or interruption and do not alert again.
 
 Use `mouse_bluesky.processing_marker.check_marker` as the reference readiness
 check. The module uses only the standard library and can be copied to the
 Rundeck host without installing Bluesky. The share can receive the marker before
 the files, so every listed file must exist at exactly its listed size before
 processing starts. Share mtimes and extra unlisted files do not affect readiness.
-An unreadable or partially synced marker is not ready and should be retried.
+An unreadable or partially synced marker can be checked again on the next poll.
+If its ID cannot be read, preserve the YMD's recorded state; a transient read
+failure must not make a previously handled marker eligible for processing again.
 
 Re-measuring into an already processed YMD produces a new marker with a new
 `marker_id`, triggering reprocessing. Store the ID returned by the readiness
