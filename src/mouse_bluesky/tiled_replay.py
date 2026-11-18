@@ -105,6 +105,9 @@ def replay_file(
             if not replace_partial:
                 log(f"{path.name}: run {uid} is partly in Tiled; rerun with --replace-partial to rewrite it")
                 return False
+            if not has_stop:
+                log(f"{path.name}: no stop document, so the partial run {uid} cannot be replaced; left in place")
+                return False
             client.delete_contents(uid, recursive=True, external_only=False)
             log(f"{path.name}: deleted the partial run {uid}")
 

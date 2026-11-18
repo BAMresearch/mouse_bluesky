@@ -243,6 +243,18 @@ def test_in_progress_backup_is_not_touched_even_if_run_is_partly_in_tiled(tmp_pa
     assert path.exists()
 
 
+def test_unfinished_backup_cannot_delete_a_partial_run_with_both_flags(tmp_path, rig):
+    client, calls, lines, replay = rig
+    preload(client, run_documents(primary=1, stop=False))
+    path = write_backup(tmp_path / "a.jsonl", run_documents(stop=False))
+
+    assert replay(replace_partial=True, include_unfinished=True) == 1
+    assert client.deleted == []
+    assert calls == []
+    assert path.exists()
+    assert "no stop document" in lines[0]
+
+
 @pytest.mark.parametrize(
     "content",
     [
