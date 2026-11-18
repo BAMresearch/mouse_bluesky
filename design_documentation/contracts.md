@@ -1,5 +1,72 @@
 # Contracts & inner workings
 
+## YMD-complete marker
+
+The CLI inserts `mark_ymd_complete` after the last `measure_yzstage` for each
+distinct logbook date in the final queue order: after scheduling, collation,
+configuration insertion and the measurement kwargs merge. It copies `root_path`
+from that last measurement. There is one trigger per YMD, with no logbook marker
+row and no per-batch trigger. Measurements without a YMD or with the unresolved
+sentinel `20261232` are skipped. Library builders opt in with
+`insert_ymd_complete=True`; CLI `validate` and `enqueue` enable it by default.
+
+The marker is `<root>/<YYYY>/<YMD>/READY_FOR_PROCESSING.json`:
+
+```json
+{
+  "format": "mouse-ymd-complete/1",
+  "marker_id": "34ae6a61e06d4a6393aaef81728de385",
+  "ymd": "20261118",
+  "created": "2026-11-18T17:00:00+00:00",
+  "files": [
+    {"path": "20261118_3_0/COMPLETE", "size": 3},
+    {"path": "20261118_3_0/image.h5", "size": 123}
+  ],
+  "sequences": [{"name": "20261118_3_0", "complete": true}]
+}
+```
+
+- `format` identifies the schema version.
+- `marker_id` is a fresh UUID4 hex string for this processing trigger.
+- `ymd` is the eight-digit calendar date and must match the directory name.
+- `created` is the creation time in ISO 8601 UTC with an explicit offset.
+- `files` is sorted by relative POSIX path, with each regular file's size in
+  bytes. It includes nested files and `COMPLETE` flags. It excludes symlinks,
+  dotfiles, dot-directories (including `.keep`, sync partials and marker temp
+  files), and the marker itself. Mtimes are used locally to detect changes but
+  omitted from the manifest because share mtimes can differ.
+- `sequences` lists visible direct subdirectories sorted by name, excluding
+  symlinks. `complete` means that directory contains a regular `COMPLETE` file.
+  The pipeline decides how to handle incomplete sequences.
+
+`procpipeline` is omitted: the data pipeline reads it from the logbook and writes
+it into the HDF5 files. The marker describes files and completion state; it does
+not choose the processing workflow.
+
+The plan requires an existing, nonempty YMD directory. It samples file sizes
+and nanosecond mtimes every 2 s until unchanged for at least 10 s, with a 300 s
+timeout. These timings are plan parameters. It writes JSON into
+`.READY_FOR_PROCESSING.<marker_id>.tmp`, flushes and `fsync`s the file, then uses
+`os.replace` to publish it atomically. Failure removes the temp file. A later
+successful marker replaces an earlier one with a new `marker_id`.
+
+The audit run persisted to Tiled carries `activity: "ymd_complete"`, `ymd`,
+`marker_id` and the absolute POSIX `marker_path`, plus the usual facility and
+instrument identity. A missing or empty directory, settle timeout, or filesystem
+error closes the run with `exit_status="fail"` and a reason, prints a warning,
+and returns normally so the queue continues. No new marker is published on
+failure; an existing marker is retained. Abort and halt retain normal RunEngine
+behavior, including an `abort` stop document, and do not publish a marker during
+settling.
+
+The sync tool may deliver the marker before its data. The standard-library-only
+`mouse_bluesky.processing_marker.check_marker(ymd_directory)` is the reference
+readiness check on the share. Its frozen `MarkerCheck` result contains `ready`,
+`marker_id`, `missing`, `size_mismatch` and `problem`. Missing or invalid JSON,
+unknown format, a mismatched YMD, or missing or differently sized listed files
+means not ready. Additional unlisted files do not block readiness. Never start
+processing solely because the marker exists.
+
 ## Protocol compilation contract
 
 Input:

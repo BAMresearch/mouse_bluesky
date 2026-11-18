@@ -71,11 +71,12 @@ def _cmd_build_specs(args: argparse.Namespace) -> int:
         load_all=args.load_all,
         apply_config_extra_kwargs=apply_extra,
         measurement_extra_kwargs=measurement_extra,
+        insert_ymd_complete=not args.no_ymd_complete,
     )
 
     issues = validate_specs(
         specs,
-        known_plans=set(registry.known()) | {"apply_config", "measure_yzstage"},
+        known_plans=set(registry.known()) | {"apply_config", "measure_yzstage", "mark_ymd_complete"},
         config_root=args.config_root or settings.config_root,
     )
 
@@ -112,11 +113,12 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
         load_all=args.load_all,
         apply_config_extra_kwargs=apply_extra,
         measurement_extra_kwargs=measurement_extra,
+        insert_ymd_complete=not args.no_ymd_complete,
     )
 
     issues = validate_specs(
         specs,
-        known_plans=set(registry.known()) | {"apply_config", "measure_yzstage"},
+        known_plans=set(registry.known()) | {"apply_config", "measure_yzstage", "mark_ymd_complete"},
         config_root=args.config_root or settings.config_root,
     )
 
@@ -205,6 +207,7 @@ def main(argv: list[str] | None = None) -> None:
         sp.add_argument("logbook", help="Path to logbook Excel file")
         sp.add_argument("projects", help="Base directory containing project/proposal spreadsheets")
         sp.add_argument("--load-all", action="store_true", help="Include entries with converttoscript!=1")
+        sp.add_argument("--no-ymd-complete", action="store_true", help="Do not insert YMD processing markers")
         sp.add_argument("--root-path", type=Path, default=None, help="Data root path (default from env)")
         sp.add_argument("--config-root", type=Path, default=None, help="Config root path containing {config_id}.nxs")
         sp.add_argument("--root-default", default="/data/mouse", help="Default root path if env not set")

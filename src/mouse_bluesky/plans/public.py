@@ -8,14 +8,13 @@ from bluesky import preprocessors as bpp
 
 from mouse_bluesky.devices.eiger import ad_configure_energy
 from mouse_bluesky.identity import refuse_identity_keys
+from mouse_bluesky.processing_marker import UNRESOLVED_YMD_SENTINEL
 from mouse_bluesky.settings import Settings
 
 from .atomic import measure_yzstage_atomic
 from .sequence import allocate_sequence_dir
 from .snapshot import snapshot_state
 from .source import check_source_power, source_settings_for_config_id
-
-UNRESOLVED_YMD_SENTINEL = "20261232"
 
 
 def _get_ipython_user_ns() -> Mapping[str, object]:

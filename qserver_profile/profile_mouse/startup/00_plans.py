@@ -19,6 +19,7 @@ from mouse_bluesky.interactive import capillary_scan, edge_scan, peak_scan, vall
 
 # Import your plans so they are discovered by qserver.
 from mouse_bluesky.plans.configure import apply_config
+from mouse_bluesky.plans.processing import mark_ymd_complete
 from mouse_bluesky.plans.public import measure_yzstage
 from mouse_bluesky.plans.vacuum import evacuate, ventilate
 

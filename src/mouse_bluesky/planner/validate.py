@@ -12,6 +12,7 @@ from .models import PlanSpec
 @attrs.frozen(slots=True)
 class ValidationIssue:
     """Represents one static validation finding for planned specs."""
+
     kind: str
     message: str
     context: Mapping[str, Any] | None = None
@@ -51,6 +52,12 @@ def validate_specs(
                     )
                 )
 
+    for i, s in enumerate(specs):
+        if s.name == "mark_ymd_complete" and "ymd" not in s.kwargs:
+            issues.append(
+                ValidationIssue("missing_marker_kwarg", "mark_ymd_complete missing kwarg 'ymd'", {"index": i})
+            )
+
     # Validate config files used by apply_config (or by measure_yzstage)
     if config_root is not None:
         root = Path(config_root)
@@ -62,7 +69,9 @@ def validate_specs(
                     cfg_ids.add(int(s.kwargs["config_id"]))
                 except Exception:
                     issues.append(
-                        ValidationIssue("bad_config_id", f"Non-integer config_id: {s.kwargs['config_id']!r}", {"plan": s.name})
+                        ValidationIssue(
+                            "bad_config_id", f"Non-integer config_id: {s.kwargs['config_id']!r}", {"plan": s.name}
+                        )
                     )
 
         for cfg in sorted(cfg_ids):
