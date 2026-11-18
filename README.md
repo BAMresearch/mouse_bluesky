@@ -154,6 +154,11 @@ You can override both via CLI flags or by injecting `measurement_extra_kwargs` /
 
 After installation, a small CLI is available:
 
+`validate` and `enqueue` insert a processing marker after the final measurement
+of each logbook date. See [Triggering data processing](design_documentation/operations.md#triggering-data-processing)
+for the share-readiness check and recommended Rundeck job. Use
+`--no-ymd-complete` to disable insertion.
+
 - Validate planned queue (compile logbook → specs → static validation):
 
 ```bash

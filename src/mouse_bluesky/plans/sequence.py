@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..processing_marker import ymd_dir
+
 
 def allocate_sequence_dir(*, root: Path, ymd: str, batchnum: int) -> tuple[int, Path]:
     """
@@ -11,7 +13,7 @@ def allocate_sequence_dir(*, root: Path, ymd: str, batchnum: int) -> tuple[int, 
     Returns:
         (sequence_index, destination_path)
     """
-    base = root / ymd[:4] / ymd
+    base = ymd_dir(root, ymd)
     base.mkdir(parents=True, exist_ok=True)
     (base / ".keep").touch()
 

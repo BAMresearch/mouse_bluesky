@@ -504,6 +504,49 @@ means the `*.jsonl` files directly inside it. Each file is handled on its own:
 A file in `replayed/` is never overwritten; a second copy gets a numbered name.
 The command exits 1 if any file was left in place, so it is safe to run again.
 
+## Triggering data processing
+
+`validate` and `enqueue` automatically insert one `mark_ymd_complete` plan after
+the final scheduled measurement of each YMD. Use `--no-ymd-complete` on either
+command to turn this off. There is no marker row to add to the logbook.
+After deploying, close and reopen the Queue Server environment so the new plan
+is loaded.
+
+The plan waits for local files to settle and writes
+`<root>/<YYYY>/<YMD>/READY_FOR_PROCESSING.json`, containing a file-size manifest
+and the completion state of each sequence directory. A failed marker run shows
+in Tiled with `activity: "ymd_complete"`, `exit_status: "fail"` and a reason;
+it prints a warning and does not stop the queue. Processing can be started by
+hand if needed. See the [marker contract](contracts.md#ymd-complete-marker).
+
+The following is recommended guidance for a Rundeck job on the processing host;
+the job is not implemented in this repository:
+
+1. Run every few minutes, with concurrent executions disabled in Rundeck.
+2. Find `<share>/*/*/READY_FOR_PROCESSING.json`.
+3. Skip a YMD whose `marker_id` the pipeline has already processed. Keep this
+   state on the pipeline side, outside the synced data tree.
+4. Call `check_marker` on that marker's parent YMD directory. If not ready, log
+   `problem`, `missing` and `size_mismatch`, then retry on the next poll. Alert
+   if it remains unready for a long time, for example 24 h.
+5. When ready, run the existing pipeline for that YMD. After successful
+   processing, record the checked `marker_id` as processed. A failed pipeline
+   must leave the marker eligible for retry.
+
+Use `mouse_bluesky.processing_marker.check_marker` as the reference readiness
+check. The module uses only the standard library and can be copied to the
+Rundeck host without installing Bluesky. The share can receive the marker before
+the files, so every listed file must exist at exactly its listed size before
+processing starts. Share mtimes and extra unlisted files do not affect readiness.
+An unreadable or partially synced marker is not ready and should be retried.
+
+Re-measuring into an already processed YMD produces a new marker with a new
+`marker_id`, triggering reprocessing. Store the ID returned by the readiness
+check that authorized the pipeline run; if the marker is replaced while
+processing, its newer ID must remain eligible for the next poll. The manifest
+records incomplete sequences too, and the pipeline decides what to do with
+them. It reads `procpipeline` from the logbook as before.
+
 ## Failure modes & recovery
 
 - If a measurement fails:

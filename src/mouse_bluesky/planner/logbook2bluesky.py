@@ -10,6 +10,7 @@ from bluesky_queueserver.manager.comms import zmq_single_request
 from ..protocols.registry import LogbookEntryLike, ProtocolRegistry
 from .config_insertion import insert_apply_config_before_measurements
 from .logbook_integration import iter_mouse_logbook_entries
+from .marker_insertion import insert_ymd_complete_markers
 from .models import CompiledEntry, PlanSpec
 from .params import parse_additional_parameters
 from .scheduler import schedule
@@ -40,6 +41,7 @@ def build_plan_specs(
     registry: ProtocolRegistry,
     apply_config_extra_kwargs: Mapping[str, Any] | None = None,
     measurement_extra_kwargs: Mapping[str, Any] | None = None,
+    insert_ymd_complete: bool = False,
 ) -> list[PlanSpec]:
     """Build queue-ready plan specs from entries with scheduling and per-measurement config insertion."""
     compiled = compile_entries(entries, registry=registry)
@@ -50,7 +52,7 @@ def build_plan_specs(
     )
     extra_measurement_kwargs = dict(measurement_extra_kwargs or {})
     if not extra_measurement_kwargs:
-        return with_configs
+        return insert_ymd_complete_markers(with_configs) if insert_ymd_complete else with_configs
 
     out: list[PlanSpec] = []
     for spec in with_configs:
@@ -60,7 +62,7 @@ def build_plan_specs(
         merged_kwargs = dict(spec.kwargs)
         merged_kwargs.update(extra_measurement_kwargs)
         out.append(PlanSpec(name=spec.name, kwargs=merged_kwargs, meta=spec.meta))
-    return out
+    return insert_ymd_complete_markers(out) if insert_ymd_complete else out
 
 
 def _queue_request(method: str, *, params: Mapping[str, Any] | None = None, zmq_control_addr: str) -> Any:
@@ -177,6 +179,7 @@ def build_plan_specs_from_logbook(
     load_all: bool = False,
     apply_config_extra_kwargs: Mapping[str, Any] | None = None,
     measurement_extra_kwargs: Mapping[str, Any] | None = None,
+    insert_ymd_complete: bool = False,
 ) -> list[PlanSpec]:
     """Read logbook rows and return fully prepared plan specs."""
     entries = list(
@@ -191,4 +194,5 @@ def build_plan_specs_from_logbook(
         registry=registry,
         apply_config_extra_kwargs=apply_config_extra_kwargs,
         measurement_extra_kwargs=measurement_extra_kwargs,
+        insert_ymd_complete=insert_ymd_complete,
     )
