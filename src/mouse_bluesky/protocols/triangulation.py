@@ -11,12 +11,19 @@ from .registry import LogbookEntryLike
 
 
 def _integer(value: Any, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, (int, str)):
-        raise ValueError(f"triangulation '{name}' must be an int")
+    # Excel logbooks often deliver whole numbers as "123.0", so accept any integral value.
+    message = f"triangulation '{name}' must be an int"
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError(message)
+    if isinstance(value, int):
+        return value
     try:
-        return int(value)
+        number = float(value)
     except ValueError as exc:
-        raise ValueError(f"triangulation '{name}' must be an int") from exc
+        raise ValueError(message) from exc
+    if not number.is_integer():  # Also rejects inf and nan.
+        raise ValueError(message)
+    return int(number)
 
 
 def _number(value: Any, name: str) -> float:

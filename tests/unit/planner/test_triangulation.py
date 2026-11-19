@@ -102,9 +102,28 @@ def test_old_parameter_names_and_json_work_through_registry(json_params):
 
 
 @pytest.mark.parametrize(
+    "raw",
+    [
+        # pandas reads a value column with blank cells as float, so plain cells arrive like this.
+        {"configuration": "160.0", "steps": "3.0", "duration": "2.5", "start": "100.0", "stop": "-20.0"},
+        {"__json__": '{"configuration": 160.0, "steps": 3.0, "duration": 2.5, "start": 100, "stop": -20}'},
+    ],
+)
+def test_whole_numbers_written_as_floats_are_accepted(raw):
+    result = logbook2bluesky.compile_entries([entry(additional_parameters=raw)], registry=build_default_registry())[0]
+    assert [s.kwargs["md"]["triangulation_detx"] for s in result.specs[:-1]] == [100.0, 40.0, -20.0]
+    assert all(type(s.kwargs["config_id"]) is int and s.kwargs["config_id"] == 160 for s in result.specs)
+    assert all(type(s.kwargs["md"]["triangulation_points"]) is int for s in result.specs[:-1])
+
+
+@pytest.mark.parametrize(
     "params,message",
     [
         ({}, "requires 'configuration'"),
+        ({"configuration": "123.5"}, "'configuration' must be an int"),
+        ({"configuration": "inf"}, "'configuration' must be an int"),
+        ({"configuration": "nan"}, "'configuration' must be an int"),
+        ({"steps": "50.5"}, "'steps' must be an int"),
         ({"configuration": 1.5}, "'configuration' must be an int"),
         ({"configuration": True}, "'configuration' must be an int"),
         ({"configuration": "abc"}, "'configuration' must be an int"),
