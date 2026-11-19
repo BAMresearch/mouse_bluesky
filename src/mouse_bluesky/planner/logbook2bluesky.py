@@ -46,21 +46,17 @@ def build_plan_specs(
     """Build queue-ready plan specs from entries with scheduling and per-measurement config insertion."""
     compiled = compile_entries(entries, registry=registry)
     ordered = schedule(compiled)
-    with_configs = insert_apply_config_before_measurements(
-        ordered,
-        extra_apply_kwargs=dict(apply_config_extra_kwargs or {}),
-    )
+    with_configs = insert_apply_config_before_measurements(ordered)
+    extra_apply_kwargs = dict(apply_config_extra_kwargs or {})
     extra_measurement_kwargs = dict(measurement_extra_kwargs or {})
-    if not extra_measurement_kwargs:
-        return insert_ymd_complete_markers(with_configs) if insert_ymd_complete else with_configs
-
     out: list[PlanSpec] = []
     for spec in with_configs:
-        if spec.name != "measure_yzstage":
-            out.append(spec)
-            continue
         merged_kwargs = dict(spec.kwargs)
-        merged_kwargs.update(extra_measurement_kwargs)
+        if spec.name == "apply_config":
+            # Protocols may supply their own config applications (e.g. restore).
+            merged_kwargs = {**extra_apply_kwargs, **merged_kwargs}
+        elif spec.name == "measure_yzstage":
+            merged_kwargs.update(extra_measurement_kwargs)
         out.append(PlanSpec(name=spec.name, kwargs=merged_kwargs, meta=spec.meta))
     return insert_ymd_complete_markers(out) if insert_ymd_complete else out
 

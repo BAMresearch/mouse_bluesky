@@ -25,7 +25,7 @@ def insert_apply_config_before_measurements(
     meta_config_key: str = "config_id",
     extra_apply_kwargs: Mapping[str, Any] | None = None,
 ) -> list[PlanSpec]:
-    """Insert `apply_config(config_id)` before every matching measurement plan."""
+    """Insert config applications, including each measurement's config overrides."""
     out: list[PlanSpec] = []
     extra = dict(extra_apply_kwargs or {})
 
@@ -36,7 +36,7 @@ def insert_apply_config_before_measurements(
                 out.append(
                     PlanSpec(
                         name=apply_plan_name,
-                        kwargs={config_kwarg: cfg_int, **extra},
+                        kwargs={config_kwarg: cfg_int, **extra, **s.meta.get("apply_config_kwargs", {})},
                         meta={"config_id": cfg_int},
                     )
                 )

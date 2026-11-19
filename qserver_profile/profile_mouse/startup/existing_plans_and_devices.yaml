@@ -3224,6 +3224,20 @@ existing_plans:
         value: 3
       name: config_root
     - annotation:
+        type: '''float | None'''
+      default: None
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: detx
+    - annotation:
+        type: '''bool'''
+      default: 'False'
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: beam_stop_out
+    - annotation:
         type: '''Mapping[str, object] | None'''
       default: None
       kind:

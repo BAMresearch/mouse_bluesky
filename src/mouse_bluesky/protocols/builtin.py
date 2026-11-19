@@ -5,6 +5,7 @@ from typing import Any
 
 from ..planner.models import CollatePolicy, CompiledEntry, PlanSpec
 from .registry import LogbookEntryLike, ProtocolRegistry, ProtocolSpec
+from .triangulation import compile_triangulation
 
 
 def _sample_key(e: LogbookEntryLike) -> str:
@@ -130,4 +131,5 @@ def build_default_registry() -> ProtocolRegistry:
         )
     )
     reg.register(ProtocolSpec(name="standard_measurements", compile=compile_standard_measurements))
+    reg.register(ProtocolSpec(name="triangulation", compile=compile_triangulation))
     return reg
