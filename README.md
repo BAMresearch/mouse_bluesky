@@ -13,7 +13,17 @@ Logbook-driven planning and Bluesky plans for MOUSE. This repository provides:
 - **Generator protocols**: compile to many measurement runs; reorderable within contiguous `collate=ALLOW` blocks.
 - **One measurement = one run** persisted to Tiled.
 - **apply_config before every measurement**: planner re-applies the requested config ahead of each `measure_yzstage` run.
+- **Triangulation protocol**: measures one sample at ordered detector distances, with the beamstop out, then re-applies the configuration.
 - **Debug snapshot per measurement**: emitted inside each measurement run (stream `snapshot`). Baseline is configured at the RunEngine level.
+
+Set the logbook protocol to `triangulation` and additional parameters to
+`{"configuration": "123"}`. Defaults are `start=500` mm, `stop=-130` mm,
+`steps=50`, `duration=60` s and `collate=FORBID`; each can be supplied in the
+logbook, but `collate=ALLOW` is rejected. Every point runs the full measurement:
+20 s blank and 20 s through-sample beam profiles plus the main exposure, with
+the beamstop out for all three. The default series takes roughly 1.5 to 2 hours.
+See [triangulation operations](design_documentation/operations.md#triangulation-protocol)
+for parameters, examples and recovery.
 
 ## Directory layout (expected)
 

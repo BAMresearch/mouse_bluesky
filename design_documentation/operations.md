@@ -37,6 +37,80 @@ Each entry includes:
 - compile entries → scheduled plan items (QueuePlan list)
 - insert `apply_config` before every measurement
 
+### Triangulation protocol
+
+Use `protocol=triangulation` to collect data for locating a sample relative to
+the detector axis. It measures one sample with one configuration at a series
+of detector x positions. Analysis/extrapolation is performed separately.
+
+For example, a logbook entry can contain these fields (alongside the usual
+proposal, sample, position, date and batch fields):
+
+```python
+protocol = "triangulation"
+additional_parameters = {
+    "configuration": "123",
+    "start": "500",
+    "stop": "-130",
+    "steps": "50",
+    "duration": "60",
+}
+```
+
+The same parameters can be supplied as typed JSON:
+
+```python
+additional_parameters = {
+    "__json__": '{"configuration": 123, "start": 500, "stop": -130, "steps": 50, "duration": 60}'
+}
+```
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `configuration` | Required | Integer configuration file ID. |
+| `start` | 500 mm | First detector x target. |
+| `stop` | -130 mm | Last detector x target; must differ from `start`. |
+| `steps` | 50 | Integer number of equally spaced points, including both endpoints; at least 2. |
+| `duration` | 60 s | Positive main exposure time (`sample_exposure_time`). |
+| `collate` | `FORBID` | Points stay together and in order; `ALLOW` is rejected. |
+
+Unknown parameter names are rejected during compilation/`validate`. The old
+parameter names `configuration`, `steps` and `duration` remain supported.
+Distances follow `numpy.linspace(start, stop, steps)`, so increasing series are
+also supported. Values must be finite; no motor travel range is hard-coded in
+the planner. EPICS sets the detector motor's limits. Ophyd rejects an
+out-of-range target with `LimitError`, reporting the target and limits; that
+point's `apply_config` audit run records `fail` and the reason, and the queue
+stops before its measurement.
+
+Every point is a separate `measure_yzstage` queue item, run and sequence
+directory. Its preceding `apply_config` applies the full configuration with
+that point's `detx` override and `beam_stop_out=True`. The detector moves
+straight to the target without visiting the file's `detx` first. The beamstop
+uses the live device's `out_position` and stays out for all three exposures:
+20 s blank beam profile, 20 s through-sample beam profile, then the main
+exposure. Fifty points at 60 s therefore take roughly 1.5 to 2 hours with
+motor moves and acquisition overhead.
+
+After the last point, a separate `apply_config` without overrides restores the
+configuration's detector and beamstop positions. This restore runs when the
+queue reaches it; stopping or failing earlier does not immediately restore
+the machine. To restart a point after another measurement or manual changes,
+include its preceding `apply_config` so its configuration and both overrides
+are re-established. Each point can be retried without repeating the series.
+
+Find the data using run metadata `protocol="triangulation"`,
+`triangulation_index` (0-based), `triangulation_points` and
+`triangulation_detx` (target). The baseline and all three `im_craw.nxs` files
+record the actual detector readback; NeXus stores it at `/saxs/Saxslab/detx`.
+When this is the last measurement series for a date, the enabled YMD processing
+marker follows the last point and precedes the restore. This order is fine:
+the restore produces only its audit run, with no measurement files.
+
+The Queue Server plan list includes the new `apply_config` keywords. After
+deploying, close and reopen the worker environment to load its updated
+signature; no new plan is added to `00_plans.py`.
+
 ### 3) Pre-validate (static)
 
 Before pushing items to the queue, run the static validator:

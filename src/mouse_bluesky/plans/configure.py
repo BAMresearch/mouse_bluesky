@@ -318,7 +318,14 @@ def collect_sensor_readbacks(*, namespace: Mapping[str, object] | None = None) -
     return values
 
 
-def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, object] | None = None) -> Iterator:
+def apply_config(
+    *,
+    config_id: int,
+    config_root: str,
+    detx: float | None = None,
+    beam_stop_out: bool = False,
+    namespace: Mapping[str, object] | None = None,
+) -> Iterator:
     """Apply a machine configuration from ``{config_root}/{config_id}.nxs``.
 
     The plan:
@@ -332,6 +339,10 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
        that should move together.
     5. Moves remaining mapped signals one-by-one.
     6. Sets and verifies Eiger photon/threshold energies for the selected source.
+
+    ``detx`` overrides the detector x setpoint. ``beam_stop_out`` substitutes
+    the live beam stop's ``out_position`` for the file's bsr setpoint.
+    Both overrides are recorded in the audit run, including their defaults.
 
     Raises:
         FileNotFoundError: If the config file does not exist.
@@ -348,6 +359,8 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
         "config_file": config_file_path.as_posix(),
         "photon_energy_ev": source.photon_energy_ev,
         "threshold_energy_ev": source.threshold_energy_ev,
+        "detx": detx,
+        "beam_stop_out": beam_stop_out,
     }
 
     yield from bps.open_run(md=run_md)
@@ -368,6 +381,12 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
             }
             eiger = _resolve_dotted_name("eiger", namespace=namespace)
             values = {hdf5_path: float(f[hdf5_path][()]) for hdf5_path in ophyd_map}
+
+        if detx is not None:
+            values["/saxs/Saxslab/detx"] = float(detx)
+        if beam_stop_out:
+            beam_stop = _resolve_dotted_name("beam_stop", namespace=namespace)
+            values["/saxs/Saxslab/bsr"] = float(beam_stop.out_position)
 
         moved_paths: set[str] = set()
         for group in MOVE_IN_GROUPS:
