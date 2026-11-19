@@ -136,8 +136,7 @@ Start the queue from the Queue Server UI/CLI.
 
 ### HTTP server (read-only queue access)
 
-`event-timeline-tiled` runs on another server and reads the MOUSE status and queue
-through `bluesky-httpserver==0.0.15`. Operators keep using the local ZMQ CLI and
+`event-timeline-tiled` reads the MOUSE status and queue through `bluesky-httpserver==0.0.15`. Operators keep using the local ZMQ CLI and
 scripts, including enqueue, evacuation and ventilation. The HTTP server connects
 to `tcp://127.0.0.1:60615` (control) and `tcp://127.0.0.1:60625` (information), as
 configured in `qserver_profile/http_server/config.yml`.
@@ -149,6 +148,11 @@ ports. The info port 60625 is only opened when console publishing is enabled;
 the HTTP server's status and queue reads do not need it. Any future remote
 control or monitoring must go through the HTTP server with its own account and
 the scopes needed by that client; the dashboard account remains read-only.
+
+The dashboard currently runs on the instrument PC itself and reads the HTTP server
+at `http://127.0.0.1:60610`, so no certificate is needed (see
+[Event-timeline dashboard](#event-timeline-dashboard)). The TLS settings and
+checklist below apply when it moves to a separate server.
 
 #### Environment, database and TLS
 
@@ -368,7 +372,62 @@ outside the repository tests:
    secure channel.
 6. On the dashboard server, configure `ETT_QUEUES=MOUSE=http:https://<host>:<port>`
    and `ETT_QUEUE_MOUSE_API_KEY_FILE` pointing to the private raw key file, then
-   run event-timeline-tiled's live queue-panel check.
+   run event-timeline-tiled's live queue-panel check. In its standard layout
+   that variable is a path inside the adapter container, such as
+   `/secrets/<file>` in the `ETT_SECRETS` directory; the single-host launcher
+   uses `ETT_QUEUE_KEY_FILE`, a host path, instead. If the certificate's CA is
+   not publicly trusted, mount a bundle into the adapter and set `SSL_CERT_FILE`
+   to it. The bundle replaces the default trust store, so concatenate the system
+   roots and that CA.
+
+### Event-timeline dashboard
+
+`start-mouse-dashboard.sh` runs event-timeline-tiled on the instrument PC under
+rootless Podman, on the host network. Its proxy, Grafana and adapter listen on
+`127.0.0.1` only (ports 8080, 3000 and 8000); open the dashboards at
+<http://127.0.0.1:8080/>. Event-timeline-tiled's
+`docs/technical/single-host.md` describes the host set-up: the Podman socket,
+lingering and the standalone `docker-compose` in `~/.local/bin`.
+
+The script reads these files, each owned by the user and mode `600`, and refuses
+to start otherwise:
+
+| File | Purpose |
+|---|---|
+| `~/.tiled_api.key` | Tiled key, mounted read-only into the adapter. Interim: this is the RE's own key, because single-user Tiled has no read-only keys. Replace it with a read-only service key once Tiled is multi-user. |
+| `~/.config/mouse-http-server/dashboard.key` | the raw two-scope HTTP server key (above) |
+| `~/.config/mouse-dashboard/grafana-admin.password` | Grafana admin password, used only when Grafana first creates its database |
+| `~/.config/mouse-dashboard/grafana-viewer.password` | password of the read-only Grafana login `mouse` (only for `--viewer`) |
+
+Never put these values in a `deploy/.env`. The script refuses to start while one
+exists in the event-timeline-tiled checkout (`~/code/event_timeline_tiled`, or
+`ETT_DIR`).
+
+Once per event-timeline-tiled release, with network access:
+
+```bash
+cd ~/code/event_timeline_tiled && git fetch --tags && git checkout <release tag>
+~/code/mouse_bluesky/start-mouse-dashboard.sh --install   # builds and pulls, then exits
+```
+
+Start, with the HTTP server already running:
+
+```bash
+screen -S bluesky_dashboard
+~/code/mouse_bluesky/start-mouse-dashboard.sh
+# Detach with Ctrl-A, D. To stop: screen -r bluesky_dashboard, then Ctrl-C.
+```
+
+The stack never builds or pulls when it starts. After the first start, once:
+
+```bash
+~/code/mouse_bluesky/start-mouse-dashboard.sh --viewer   # creates or updates the Viewer login "mouse"
+~/code/mouse_bluesky/start-mouse-dashboard.sh --compose run --rm --no-deps adapter \
+    ett-check-access --run <recent MOUSE run uid> --accept-single-user-key
+```
+
+`--compose …` runs any other compose command with the stack's files and settings,
+for example `--compose logs --tail 50 adapter` or `--compose ps`.
 
 ### Vacuum plans
 
