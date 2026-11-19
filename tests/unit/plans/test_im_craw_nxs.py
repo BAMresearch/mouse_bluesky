@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import h5py
+from bluesky import RunEngine
 
 from mouse_bluesky.plans.im_craw import write_im_craw_nxs
 from mouse_bluesky.plans.public import measure_yzstage
@@ -46,7 +47,7 @@ def test_write_im_craw_nxs_writes_metadata_and_state(tmp_path: Path) -> None:
         assert _scalar(f["/entry1/sample/sampleid"][()]) == 12
         assert _scalar(f["/entry1/instrument/configuration"][()]) == 161
         assert _scalar(f["/entry1/instrument/source/name"][()]) == "cu_generator"
-        assert float(_scalar(f["/entry1/instrument/source/voltage"][()])) == 45.0
+        assert float(_scalar(f["/entry1/instrument/source/voltage"][()])) == 5000
         assert float(_scalar(f["/saxs/Saxslab/chamber_pressure"][()])) == 1.2
         assert float(_scalar(f["/entry1/experiment/environment_temperature"][()])) == 22.3
         assert float(_scalar(f["/entry1/experiment/stage_temperature"][()])) == 26.7
@@ -92,7 +93,7 @@ def test_measure_yzstage_writes_im_craw_next_to_detector_data(
         sampleposition={"ysam": 1.2, "zsam": -0.4},
         sample_exposure_time=33.0,
     )
-    list(plan)
+    RunEngine({})(plan)
 
     sample_out = destination / "im_craw.nxs"
     beam_profile_out = destination / "beam_profile" / "im_craw.nxs"

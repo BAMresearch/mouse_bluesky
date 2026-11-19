@@ -13,7 +13,17 @@ Logbook-driven planning and Bluesky plans for MOUSE. This repository provides:
 - **Generator protocols**: compile to many measurement runs; reorderable within contiguous `collate=ALLOW` blocks.
 - **One measurement = one run** persisted to Tiled.
 - **apply_config before every measurement**: planner re-applies the requested config ahead of each `measure_yzstage` run.
+- **Triangulation protocol**: measures one sample at ordered detector distances, with the beamstop out, then re-applies the configuration.
 - **Debug snapshot per measurement**: emitted inside each measurement run (stream `snapshot`). Baseline is configured at the RunEngine level.
+
+Set the logbook protocol to `triangulation` and additional parameters to
+`{"configuration": "123"}`. Defaults are `start=500` mm, `stop=-130` mm,
+`steps=50`, `duration=60` s and `collate=FORBID`; each can be supplied in the
+logbook, but `collate=ALLOW` is rejected. Every point runs the full measurement:
+20 s blank and 20 s through-sample beam profiles plus the main exposure, with
+the beamstop out for all three. The default series takes roughly 1.5 to 2 hours.
+See [triangulation operations](design_documentation/operations.md#triangulation-protocol)
+for parameters, examples and recovery.
 
 ## Directory layout (expected)
 
@@ -154,6 +164,11 @@ You can override both via CLI flags or by injecting `measurement_extra_kwargs` /
 
 After installation, a small CLI is available:
 
+`validate` and `enqueue` insert a processing marker after the final measurement
+of each logbook date. See [Triggering data processing](design_documentation/operations.md#triggering-data-processing)
+for the share-readiness check and recommended Rundeck job. Use
+`--no-ymd-complete` to disable insertion.
+
 - Validate planned queue (compile logbook → specs → static validation):
 
 ```bash
@@ -168,7 +183,56 @@ mouse-bluesky enqueue /path/to/logbook.xlsx /path/to/projects --zmq tcp://127.0.
   --user mouse-bluesky --user-group primary
 ```
 
+- Replay TiledWriter backup files into Tiled after a Tiled outage:
+
+```bash
+mouse-bluesky tiled-replay ~/data/tiled_backup_buffer \
+  --uri https://tiled.scicat65.ddnss.de --api-key-file ~/.tiled_api.key
+```
+
+  See [Replaying backups after a Tiled outage](design_documentation/operations.md#replaying-backups-after-a-tiled-outage).
+
   The CLI now normalizes Queue Server responses before reporting failures, so tuple-
   shaped replies (e.g. `(success, message, traceback)`) or objects with `success`
   attributes are handled gracefully and their messages are surfaced when requests
   fail.
+
+Vacuum scripts `./evacuate.sh` and `./ventilate.sh` require an idle Queue Server
+with an open worker environment. They insert the plan at the front followed by
+a `queue_stop` instruction, then start the queue. The queue stops after the plan,
+leaving existing measurements in their original order. If the queue is not idle,
+the command refuses without adding anything. `--prioritize` and `--position front`
+are accepted; `--position back` requires `--enqueue-only`. Use `--enqueue-only`
+to enqueue without adding a stop or starting the queue; this defaults to the back
+and supports `--position` and `--prioritize` as before. After deploying, close and
+reopen the Queue Server environment to load the new plans.
+
+`./start-mouse-http-server.sh` provides authenticated read-only queue access for
+the remote dashboard. See [HTTP server operations](design_documentation/operations.md#http-server-read-only-queue-access)
+for environment setup, TLS, screen sessions and API keys.
+
+To change the sample rack:
+
+```bash
+qserver queue stop
+# Wait until the current measurement finishes and the manager is idle.
+./ventilate.sh
+# Wait for ventilation to finish, then change the rack.
+./evacuate.sh
+# Wait for evacuation to finish, then continue the measurements.
+qserver queue start
+```
+
+If a vacuum plan fails or is aborted, the queue stops and Queue Server puts the
+plan back at the front, still followed by the `queue_stop` instruction. The next
+start retries the plan and then stops again. To skip the retry, remove both the
+plan and the instruction. A plan ended with `qserver re stop` counts as
+finished and is not put back, so only the instruction stays at the front and
+the next start stops immediately.
+
+Evacuation leaves the pump (`do6`) on, including after a failure once pumping
+has started. Ventilation closes `do7` when its valve sequence ends, including
+on failure, timeout, stop or abort. Shutter closes are best-effort: faults warn
+and execution continues, with safety provided by the interlocks. A worker
+crash or power loss prevents the finalizer from running, so `do7` may stay
+open. See [vacuum operations](design_documentation/operations.md#vacuum-plans).

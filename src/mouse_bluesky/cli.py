@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from .planner.logbook2bluesky import QueueServerTarget, build_plan_specs_from_logbook, populate_queue
+from .planner.logbook2bluesky import QueueServerTarget, build_plan_specs_from_logbook, populate_queue, run_now_then_stop
+from .planner.models import PlanSpec
 from .planner.validate import validate_specs
 from .protocols.builtin import build_default_registry
 from .settings import Settings
@@ -69,11 +71,12 @@ def _cmd_build_specs(args: argparse.Namespace) -> int:
         load_all=args.load_all,
         apply_config_extra_kwargs=apply_extra,
         measurement_extra_kwargs=measurement_extra,
+        insert_ymd_complete=not args.no_ymd_complete,
     )
 
     issues = validate_specs(
         specs,
-        known_plans=set(registry.known()) | {"apply_config", "measure_yzstage"},
+        known_plans=set(registry.known()) | {"apply_config", "measure_yzstage", "mark_ymd_complete"},
         config_root=args.config_root or settings.config_root,
     )
 
@@ -110,11 +113,12 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
         load_all=args.load_all,
         apply_config_extra_kwargs=apply_extra,
         measurement_extra_kwargs=measurement_extra,
+        insert_ymd_complete=not args.no_ymd_complete,
     )
 
     issues = validate_specs(
         specs,
-        known_plans=set(registry.known()) | {"apply_config", "measure_yzstage"},
+        known_plans=set(registry.known()) | {"apply_config", "measure_yzstage", "mark_ymd_complete"},
         config_root=args.config_root or settings.config_root,
     )
 
@@ -131,7 +135,10 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
         user_group=args.user_group,
     )
     responses = populate_queue(specs, target=target, position=args.position)
+    return _report_queue_responses(responses, args)
 
+
+def _report_queue_responses(responses, args: argparse.Namespace) -> int:
     # inspect responses for errors
     normalized = [_normalize_queue_response(r) for r in responses]
     failed = [r for r in normalized if not r["success"]]
@@ -151,6 +158,45 @@ def _cmd_enqueue(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_vacuum(args: argparse.Namespace) -> int:
+    """Run a vacuum plan then stop, or enqueue it for later execution."""
+    target = QueueServerTarget(zmq_control_addr=args.zmq, user=args.user, user_group=args.user_group)
+    if args.enqueue_only:
+        responses = populate_queue([PlanSpec(name=args.cmd)], target=target, position=args.position or "back")
+        return _report_queue_responses(responses, args)
+    if not run_now_then_stop(args.cmd, target=target):
+        return 1
+    if not args.quiet:
+        print(f"Started {args.cmd} at the front of the queue on {args.zmq}; the queue will stop after it.")
+    return 0
+
+
+def _cmd_tiled_replay(args: argparse.Namespace) -> int:
+    """Replay TiledWriter backup files into Tiled."""
+    from .tiled_replay import replay_backups
+
+    key_file = args.api_key_file.expanduser()
+    try:
+        api_key = key_file.read_text(encoding="utf-8").strip()
+    except OSError as error:
+        print(f"Cannot read the Tiled API key file {key_file}: {error.strerror or error}")
+        return 1
+    if not api_key:
+        print(f"The Tiled API key file {key_file} is empty.")
+        return 1
+
+    from tiled.client import from_uri
+
+    client = from_uri(args.uri, api_key=api_key)
+    left = replay_backups(
+        args.paths, client, replace_partial=args.replace_partial, include_unfinished=args.include_unfinished
+    )
+    if left:
+        print(f"{left} backup file(s) need attention; see above.")
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> None:
     """Run the `mouse-bluesky` CLI entrypoint."""
     p = argparse.ArgumentParser(prog="mouse-bluesky", description="MOUSE Bluesky planning + Queue Server utilities")
@@ -161,6 +207,7 @@ def main(argv: list[str] | None = None) -> None:
         sp.add_argument("logbook", help="Path to logbook Excel file")
         sp.add_argument("projects", help="Base directory containing project/proposal spreadsheets")
         sp.add_argument("--load-all", action="store_true", help="Include entries with converttoscript!=1")
+        sp.add_argument("--no-ymd-complete", action="store_true", help="Do not insert YMD processing markers")
         sp.add_argument("--root-path", type=Path, default=None, help="Data root path (default from env)")
         sp.add_argument("--config-root", type=Path, default=None, help="Config root path containing {config_id}.nxs")
         sp.add_argument("--root-default", default="/data/mouse", help="Default root path if env not set")
@@ -175,19 +222,61 @@ def main(argv: list[str] | None = None) -> None:
 
     p_enq = sub.add_parser("enqueue", help="Compile, validate, and enqueue into a running Queue Server")
     add_common(p_enq)
-    p_enq.add_argument("--zmq", default="tcp://127.0.0.1:60615", help="Queue Server ZMQ control address")
-    p_enq.add_argument("--position", default="back", choices=["front", "back"], help="Queue insertion position")
-    p_enq.add_argument(
-        "--prioritize",
-        action="store_const",
-        const="front",
-        dest="position",
-        help="Insert at queue front preserving spec order (enqueued in reverse under the hood)",
-    )
-    p_enq.add_argument("--user", default="mouse-bluesky", help="Queue Server request user")
-    p_enq.add_argument("--user-group", default="primary", help="Queue Server request user group")
+
+    def add_queue_options(sp: argparse.ArgumentParser) -> None:
+        sp.add_argument("--zmq", default="tcp://127.0.0.1:60615", help="Queue Server ZMQ control address")
+        sp.add_argument("--position", default="back", choices=["front", "back"], help="Queue insertion position")
+        sp.add_argument(
+            "--prioritize",
+            action="store_const",
+            const="front",
+            dest="position",
+            help="Insert at queue front preserving spec order (enqueued in reverse under the hood)",
+        )
+        sp.add_argument("--user", default="mouse-bluesky", help="Queue Server request user")
+        sp.add_argument("--user-group", default="primary", help="Queue Server request user group")
+
+    add_queue_options(p_enq)
     p_enq.set_defaults(func=_cmd_enqueue)
 
+    for name in ("evacuate", "ventilate"):
+        description = f"Run {name} at the front of an idle queue, then stop the queue"
+        p_vacuum = sub.add_parser(name, help=description, description=description)
+        add_queue_options(p_vacuum)
+        p_vacuum.add_argument(
+            "--enqueue-only", action="store_true", help="Only enqueue the plan; do not add a stop or start the queue"
+        )
+        p_vacuum.add_argument("-q", "--quiet", action="store_true", help="Less output")
+        p_vacuum.set_defaults(func=_cmd_vacuum, position=None)
+
+    description = "Write TiledWriter backup files (.jsonl) into Tiled after an outage"
+    p_replay = sub.add_parser("tiled-replay", help=description, description=description)
+    p_replay.add_argument("paths", nargs="+", type=Path, help="Backup .jsonl files, or directories holding them")
+    p_replay.add_argument(
+        "--uri", default=os.environ.get("TILED_URI"), help="Tiled server URI (default: the TILED_URI variable)"
+    )
+    p_replay.add_argument(
+        "--api-key-file",
+        type=Path,
+        default=Path("~/.tiled_api.key"),
+        help="File holding the Tiled API key (default: ~/.tiled_api.key)",
+    )
+    p_replay.add_argument(
+        "--replace-partial",
+        action="store_true",
+        help="Delete a run that is only partly in Tiled and write it again from its backup",
+    )
+    p_replay.add_argument(
+        "--include-unfinished",
+        action="store_true",
+        help="Also replay backups without a stop document (a run that crashed and will never finish)",
+    )
+    p_replay.set_defaults(func=_cmd_tiled_replay)
+
     ns = p.parse_args(argv)
+    if ns.cmd in ("evacuate", "ventilate") and not ns.enqueue_only and ns.position == "back":
+        p.error("--position back requires --enqueue-only for vacuum commands")
+    if ns.cmd == "tiled-replay" and not ns.uri:
+        p.error("tiled-replay needs --uri or the TILED_URI variable")
     rc = int(ns.func(ns))
     raise SystemExit(rc)

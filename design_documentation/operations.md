@@ -37,6 +37,80 @@ Each entry includes:
 - compile entries → scheduled plan items (QueuePlan list)
 - insert `apply_config` before every measurement
 
+### Triangulation protocol
+
+Use `protocol=triangulation` to collect data for locating a sample relative to
+the detector axis. It measures one sample with one configuration at a series
+of detector x positions. Analysis/extrapolation is performed separately.
+
+For example, a logbook entry can contain these fields (alongside the usual
+proposal, sample, position, date and batch fields):
+
+```python
+protocol = "triangulation"
+additional_parameters = {
+    "configuration": "123",
+    "start": "500",
+    "stop": "-130",
+    "steps": "50",
+    "duration": "60",
+}
+```
+
+The same parameters can be supplied as typed JSON:
+
+```python
+additional_parameters = {
+    "__json__": '{"configuration": 123, "start": 500, "stop": -130, "steps": 50, "duration": 60}'
+}
+```
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `configuration` | Required | Integer configuration file ID. |
+| `start` | 500 mm | First detector x target. |
+| `stop` | -130 mm | Last detector x target; must differ from `start`. |
+| `steps` | 50 | Integer number of equally spaced points, including both endpoints; at least 2. |
+| `duration` | 60 s | Positive main exposure time (`sample_exposure_time`). |
+| `collate` | `FORBID` | Points stay together and in order; `ALLOW` is rejected. |
+
+Unknown parameter names are rejected during compilation/`validate`. The old
+parameter names `configuration`, `steps` and `duration` remain supported.
+Distances follow `numpy.linspace(start, stop, steps)`, so increasing series are
+also supported. Values must be finite; no motor travel range is hard-coded in
+the planner. EPICS sets the detector motor's limits. Ophyd rejects an
+out-of-range target with `LimitError`, reporting the target and limits; that
+point's `apply_config` audit run records `fail` and the reason, and the queue
+stops before its measurement.
+
+Every point is a separate `measure_yzstage` queue item, run and sequence
+directory. Its preceding `apply_config` applies the full configuration with
+that point's `detx` override and `beam_stop_out=True`. The detector moves
+straight to the target without visiting the file's `detx` first. The beamstop
+uses the live device's `out_position` and stays out for all three exposures:
+20 s blank beam profile, 20 s through-sample beam profile, then the main
+exposure. Fifty points at 60 s therefore take roughly 1.5 to 2 hours with
+motor moves and acquisition overhead.
+
+After the last point, a separate `apply_config` without overrides restores the
+configuration's detector and beamstop positions. This restore runs when the
+queue reaches it; stopping or failing earlier does not immediately restore
+the machine. To restart a point after another measurement or manual changes,
+include its preceding `apply_config` so its configuration and both overrides
+are re-established. Each point can be retried without repeating the series.
+
+Find the data using run metadata `protocol="triangulation"`,
+`triangulation_index` (0-based), `triangulation_points` and
+`triangulation_detx` (target). The baseline and all three `im_craw.nxs` files
+record the actual detector readback; NeXus stores it at `/saxs/Saxslab/detx`.
+When this is the last measurement series for a date, the enabled YMD processing
+marker follows the last point and precedes the restore. This order is fine:
+the restore produces only its audit run, with no measurement files.
+
+The Queue Server plan list includes the new `apply_config` keywords. After
+deploying, close and reopen the worker environment to load its updated
+signature; no new plan is added to `00_plans.py`.
+
 ### 3) Pre-validate (static)
 
 Before pushing items to the queue, run the static validator:
@@ -60,6 +134,318 @@ Start the queue from the Queue Server UI/CLI.
 
 ## Runtime behavior
 
+### HTTP server (read-only queue access)
+
+`event-timeline-tiled` runs on another server and reads the MOUSE status and queue
+through `bluesky-httpserver==0.0.15`. Operators keep using the local ZMQ CLI and
+scripts, including enqueue, evacuation and ventilation. The HTTP server connects
+to `tcp://127.0.0.1:60615` (control) and `tcp://127.0.0.1:60625` (information), as
+configured in `qserver_profile/http_server/config.yml`.
+
+`start-mouse-re-manager.sh` binds both RE Manager ZMQ listeners only to loopback.
+This takes effect at the next RE Manager restart. The queue is only controlled
+from the instrument PC itself (checked 2026-11-17), so nothing else needs these
+ports. The info port 60625 is only opened when console publishing is enabled;
+the HTTP server's status and queue reads do not need it. Any future remote
+control or monitoring must go through the HTTP server with its own account and
+the scopes needed by that client; the dashboard account remains read-only.
+
+#### Environment, database and TLS
+
+Install the locked dependencies, activate the virtual environment, then create
+the private directories and environment file outside the repository:
+
+```bash
+install -d -m 700 "$HOME/.config/mouse-http-server" "$HOME/.local/share/mouse-http-server"
+touch "$HOME/.config/mouse-http-server/env"
+chmod 600 "$HOME/.config/mouse-http-server/env"
+```
+
+Edit that file locally with a private editor. It is sourced as Bash assignments,
+so quote values containing shell metacharacters. Set these variables (the example
+paths below must be adapted to the instrument account):
+
+| Variable | Value/purpose |
+|---|---|
+| `MOUSE_HTTP_READER_PASSWORD` | A generated, strong password for `timeline-reader`; required and nonempty. |
+| `MOUSE_HTTP_DATABASE_URI` | Required fixed URI, e.g. `sqlite:////home/<user>/.local/share/mouse-http-server/http_server.sqlite`. Four slashes denote an absolute SQLite path. |
+| `MOUSE_HTTP_HOST` | Defaults to `127.0.0.1`; set the instrument's lab interface address for the dashboard. |
+| `MOUSE_HTTP_PORT` | Defaults to `60610`. |
+| `MOUSE_HTTP_SSL_CERTFILE` | Absolute path to the site's trusted certificate/full chain, outside the repository, e.g. `/home/<user>/.config/mouse-http-server/tls/fullchain.pem`. |
+| `MOUSE_HTTP_SSL_KEYFILE` | Absolute path to its private key, e.g. `/home/<user>/.config/mouse-http-server/tls/key.pem`; restrict it to the instrument account (`chmod 600`). |
+
+The maintainer obtains the certificate, configures the lab interface and firewall,
+and creates the real password and key after deployment. The certificate must cover
+the hostname used by the dashboard, and its CA must be trusted there. Keep the TLS
+directory private and renew certificates before expiry. Uvicorn terminates TLS
+directly; there is no reverse proxy. Open the HTTP port only to the dashboard
+server in any firewall.
+
+Keep the database across restarts and back it up outside the repository. Stop the
+HTTP server before making a plain file copy, or use SQLite's online backup tool.
+The database stores identities and API key hashes; protect its directory and backups.
+Losing it invalidates the existing keys. Changing the login password does not
+revoke existing API keys: revoke those separately when rotating compromised credentials.
+
+`MOUSE_HTTP_ENV_FILE` can select another private environment file; otherwise the
+script reads `$HOME/.config/mouse-http-server/env`. It refuses missing/unreadable
+files and files readable by group or others, empty required variables, and any set
+`QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY` or
+`QSERVER_HTTP_SERVER_ALLOW_ANONYMOUS_ACCESS` (even an empty value). Unset these
+overrides in the launching shell as well as in the file. Always start through the
+script, since the library leaves an unset `${VARIABLE}` reference as literal text.
+
+A network listener requires both TLS paths to be set and readable. For a local
+check only, leave both TLS variables unset or empty and keep the host at
+`127.0.0.1` or `localhost`; the script exports empty paths, which disable uvicorn
+TLS. If either TLS path is supplied, both must be readable even on loopback.
+
+#### Start, stop and check
+
+From the repository, with its virtual environment active:
+
+```bash
+screen -S bluesky_http
+./start-mouse-http-server.sh
+# Detach with Ctrl-A, D.
+```
+
+The script locates its config relative to itself, so it also works from another
+working directory. To stop, reattach with `screen -r bluesky_http` and press Ctrl-C;
+this stops HTTP access without stopping the RE Manager. Restart the HTTP script
+after changing its environment or config. Never use `--public`.
+
+After creating the key below, check status with a private header file:
+
+```bash
+export MOUSE_HTTP_BASE_URL=https://instrument-hostname:60610
+curl --fail --silent --show-error \
+  --header @"$HOME/.config/mouse-http-server/dashboard.header" \
+  "$MOUSE_HTTP_BASE_URL/api/status"
+```
+
+The file contains one line, `Authorization: ApiKey ` followed by the key. Keep it
+mode `600`. The key stays out of command arguments and shell history. Use the
+site's CA trust (`curl --cacert /path/to/site-ca.pem` if needed); do not disable
+certificate verification. For a loopback check without TLS only, use
+`http://127.0.0.1:60610`. Avoid verbose HTTP logging, shell tracing and header dumps.
+
+#### Account and API keys
+
+There is one account, `timeline-reader`, authenticated by the `mouse` provider's
+`DictionaryAuthenticator`. `DictionaryAPIAccessControl` assigns it the custom
+`timeline_reader` role with exactly `read:status`, `read:queue` and `user:apikeys`.
+There are no operator or admin accounts. Both `unauthenticated_public` and
+`unauthenticated_single_user` roles have no scopes, so accidental public or
+single-user mode grants no queue access.
+
+The role needs `user:apikeys` because HTTP server 0.0.15 requires that scope to
+create and revoke one's own keys. The dashboard key itself has exactly
+`read:status` and `read:queue`: it cannot edit or start the queue, open the worker,
+read history or create more keys. Effective key scopes are intersected with the
+owner's current role scopes. Anyone holding the account password can create more
+read-only keys and revoke the account's keys; keep that password with the maintainer.
+Always specify the two scopes when creating a dashboard key; omitting scopes
+defaults to `inherit`, which also grants the role's key-management scope.
+
+Log in with `POST /api/auth/provider/mouse/token`, form fields `username` and
+`password`. Use the returned bearer token for `POST /api/auth/apikey` with:
+
+```json
+{"scopes": ["read:status", "read:queue"], "expires_in": null, "note": "event-timeline-tiled"}
+```
+
+For example, the following interactive Python session creates the key without
+printing the password, token or key. Run it from the activated environment on a
+trusted host. `MOUSE_HTTP_BASE_URL` must be the verified HTTPS URL (loopback HTTP is
+permitted for a local check). For a private CA with Requests, set
+`REQUESTS_CA_BUNDLE=/path/to/site-ca.pem` first.
+
+```python
+import getpass
+import os
+from pathlib import Path
+import requests
+
+base = os.environ["MOUSE_HTTP_BASE_URL"].rstrip("/")
+directory = Path.home() / ".config/mouse-http-server"
+directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+response = requests.post(
+    f"{base}/api/auth/provider/mouse/token",
+    data={"username": "timeline-reader", "password": getpass.getpass()},
+    timeout=15,
+)
+response.raise_for_status()
+token_header = {"Authorization": "Bearer " + response.json()["access_token"]}
+response = requests.post(
+    f"{base}/api/auth/apikey", headers=token_header,
+    json={"scopes": ["read:status", "read:queue"], "expires_in": None,
+          "note": "event-timeline-tiled"}, timeout=15,
+)
+response.raise_for_status()
+key = response.json()["secret"]
+def private_file(path):
+    return open(path, "x", opener=lambda path, flags: os.open(path, flags, 0o600))
+with private_file(directory / "dashboard.key") as stream:
+    stream.write(key + "\n")
+with private_file(directory / "dashboard.header") as stream:
+    stream.write("Authorization: ApiKey " + key + "\n")
+response = requests.get(
+    f"{base}/api/auth/apikey", headers={"Authorization": "ApiKey " + key}, timeout=15,
+)
+response.raise_for_status()
+print("Record first_eight:", response.json()["first_eight"])
+del key, token_header, response
+```
+
+Use fresh filenames for a rotation: this example refuses to overwrite existing
+files. The key has no expiry (`expires_in: null`); rotate it explicitly by creating
+a replacement, transferring it securely, updating and checking the dashboard,
+then revoking the old key. Transfer the raw `dashboard.key` to the dashboard
+operator through a secure channel. Never put any password, token or key in the
+repository, logs, a URL or a chat. Although the library accepts `api_key` query
+parameters and cookies, use only the `Authorization: ApiKey …` header.
+
+To inspect the current key and record its `first_eight`, use:
+
+```bash
+curl --fail --silent --show-error \
+  --header @"$HOME/.config/mouse-http-server/dashboard.header" \
+  "$MOUSE_HTTP_BASE_URL/api/auth/apikey"
+```
+
+This GET reports metadata for the supplied key; it does not list all the account's
+keys. Keep an inventory of `first_eight`, purpose and expiry. To revoke a key,
+log in again as `timeline-reader` and use the bearer token (not the dashboard key)
+for `DELETE /api/auth/apikey?first_eight=…`. The non-secret prefix can go in that
+URL; the full key must never go there. In a private Python session:
+
+```python
+import getpass
+import os
+import requests
+
+base = os.environ["MOUSE_HTTP_BASE_URL"].rstrip("/")
+response = requests.post(
+    f"{base}/api/auth/provider/mouse/token",
+    data={"username": "timeline-reader", "password": getpass.getpass()}, timeout=15,
+)
+response.raise_for_status()
+token_header = {"Authorization": "Bearer " + response.json()["access_token"]}
+response = requests.delete(
+    f"{base}/api/auth/apikey", headers=token_header,
+    params={"first_eight": input("Key first_eight to revoke: ").strip()}, timeout=15,
+)
+response.raise_for_status()
+del response, token_header
+```
+
+Revocation is limited to the logged-in account's own keys. Confirm that the
+revoked key subsequently returns `401`, then remove its private local files.
+
+#### Maintainer's after-deployment checklist
+
+These checks require the instrument and another host. They are deliberately
+outside the repository tests:
+
+1. Provision the environment file, persistent database, trusted certificate and
+   private key; restrict firewall access to the dashboard server. Start the HTTP
+   screen session and create the two-scope dashboard key.
+2. From the dashboard host over verified HTTPS, confirm `GET /api/status` and
+   `GET /api/queue/get` return `200` with the dashboard key.
+3. With that key, confirm `POST /api/queue/item/add`, `POST /api/queue/start`,
+   `POST /api/environment/open`, `GET /api/history/get` and
+   `POST /api/auth/apikey` are refused with `401` or `403`. Missing or wrong keys
+   must give `401` for both read routes. A revoked key must also give `401`.
+4. Restart the RE Manager at an operator-approved time so the loopback binding
+   takes effect. `ss -tln | grep -E ':606(15|25)'` must show `127.0.0.1`, not
+   `0.0.0.0`, and from another host the ports must not answer. Locally
+   verify `mouse-bluesky enqueue …`, `evacuate.sh` and `ventilate.sh` still work
+   over `tcp://127.0.0.1:60615`, scheduling hardware actions with the operator.
+5. Report the lab HTTPS URL (hostname and port), certificate issuer,
+   `bluesky-httpserver` version (`0.0.15`), provider (`DictionaryAuthenticator`),
+   key scopes, no expiry and `first_eight`. Send the full key only over the
+   secure channel.
+6. On the dashboard server, configure `ETT_QUEUES=MOUSE=http:https://<host>:<port>`
+   and `ETT_QUEUE_MOUSE_API_KEY_FILE` pointing to the private raw key file, then
+   run event-timeline-tiled's live queue-panel check.
+
+### Vacuum plans
+
+After deploying these plans, close and reopen the Queue Server environment so
+`evacuate` and `ventilate` are loaded. From the repository root, use:
+
+```bash
+./evacuate.sh
+./ventilate.sh
+```
+
+The Queue Server must be idle with an open worker environment. Each command
+inserts its plan at the front followed immediately by a `queue_stop` instruction,
+then starts the queue. After the plan, the instruction is consumed and the queue
+stops, leaving all existing measurements in their original order. If the queue
+is not idle, the command refuses without adding anything: stop the queue, wait
+until it is idle, then run the command again.
+
+`--prioritize` and `--position front` are accepted in this default mode and
+do not change its behavior. `--position back` requires `--enqueue-only`, which
+only enqueues the plan, without adding a stop or starting the queue. In that
+mode the default position is the back, and `--position` and `--prioritize` work
+as before. For example, `./ventilate.sh --enqueue-only` queues ventilation after
+an overnight measurement queue.
+
+The scripts forward CLI options such as `--zmq`, `--user`, `--user-group` and
+`--quiet` in both modes. Quiet suppresses success output, but errors are printed.
+The equivalent commands are `mouse-bluesky evacuate` and `mouse-bluesky ventilate`.
+
+For a sample rack change:
+
+```bash
+qserver queue stop
+# Wait until the current measurement finishes and the manager is idle.
+./ventilate.sh
+# Wait for ventilation to finish, then change the rack.
+./evacuate.sh
+# Wait for evacuation to finish, then continue the measurements.
+qserver queue start
+```
+
+If a vacuum plan fails or is aborted, the queue stops and Queue Server
+(0.0.24) puts the plan back at the front, still followed by the `queue_stop`
+instruction. The next start retries the plan and then stops again. To skip the
+retry, remove both the plan and the instruction. A plan ended with
+`qserver re stop` counts as finished and is not put back, so only the
+instruction stays at the front and the next start stops immediately. This was
+checked against a local Queue Server with dummy plans.
+
+Both plans resolve the required devices and read detector position, pressure
+and valve outputs before any write. A failed pre-flight read or non-finite
+pressure prevents execution. Each plan opens an audit run recording its
+activity, target pressure and timeout. It disables checkpoint replay, sends a
+best-effort close to each source shutter, then parks the detector at `detx=400`.
+Missing, offline or slow shutters produce warnings and the plans continue;
+safety relies on the shutters' own interlocks.
+
+`evacuate` confirms `do7=0`, then `do6=1`, and polls pressure every 3 s until
+pressure is at most 1 (default timeout 1800 s). The pump remains on at success.
+On failure, timeout or abort, `do6` is left as it is, including staying on after
+a failed evacuation; an operator decides what happens next.
+
+`ventilate` confirms `do6=0`, waits 1 s, confirms `do7=1`, and polls every 1 s
+until pressure is at least 900 (default timeout 600 s). It then holds for 10 s
+and reads pressure again. A finalizer inside the audit run closes `do7` when
+the valve sequence succeeds, fails, times out, is stopped or is aborted.
+Aborting during the initial shutter wait issues no valve commands. An immediate
+pause during ventilation ends the plan and runs cleanup rather than leaving
+the vent open in a paused plan. If the worker process crashes or power is lost,
+the finalizer cannot run and `do7` may stay open.
+
+Valve outputs are always written, even if their cached values already match.
+Each write waits for confirmation with a 30 s timeout; the slowly scanned
+`do6_RBV` and `do7_RBV` signals are not used. The ordered commands keep `do6`
+and `do7` from being enabled together. Every pressure read must be finite;
+bad readings or a pressure timeout fail the plan and stop the queue.
+
 ### Baseline stream
 
 Baseline devices are configured at RunEngine level via `SupplementalData`.
@@ -69,6 +455,63 @@ Included baseline signals cover:
 - mapped BASE motors,
 - optional YZ and GI stage motors when present,
 - generator voltage/current readbacks.
+
+Only the generator voltage/current signals in `GENERATOR_BASELINE_SIGNALS`
+are wrapped for optional baseline reads. If a generator IOC is offline when a
+run opens or crashes during the run, its unavailable baseline values are
+recorded as NaN with a warning naming the signal; the run continues. NaN here
+means the readback was unavailable. Disconnected signals are not read, avoiding
+a connection timeout, and their baseline descriptions stay the same across
+connection changes.
+
+Motors, `pressure_gauge` and `arduino` remain strict: a read failure still fails
+the run. This tolerance applies only to baseline recording. An offline active
+source stops a measurement at the power check before a run opens. Its shutter
+and the voltage/current reads in `write_im_craw_nxs` also remain strict if a
+failure occurs later in the measurement; the run then records `fail`.
+
+### Measurement failures and interruption
+
+`measure_yzstage` checks the active source's power once, immediately after
+resolving devices and before configuring detector energies. It requires at
+least 90% of full power: Cu at least 27 W of 30 W, Mo at least 45 W of 50 W.
+The generator readbacks are raw integers: each voltage count is 10 V and each
+current count is 10 uA, so power in watts is raw voltage × raw current × 1e-4.
+Cu at 5000/60 is 50 kV × 0.6 mA = 30 W. Mo is assumed to use the same scaling;
+this cannot be verified while its source is faulted.
+
+Non-finite or insufficient power raises an error naming the generator, power,
+minimum and both raw readings. Read failures propagate unchanged. A failed
+check stops the queue before anything is written: no detector energy writes,
+sequence directory, run documents or shutter commands. The check only reads
+the selected generator and does not monitor source trips during exposures.
+
+| Exit route | Shutter | `exit_status` | `COMPLETE` file |
+|---|---|---|---|
+| Success | Strict close, with no extra command | `success` | Written |
+| Exception after the shutter open was attempted | One best-effort close | `fail`, with the reason | Not written |
+| Abort | One best-effort close | `abort` | Not written |
+| Stop | One best-effort close | `success` (Bluesky convention) | Not written |
+| Halt | Not closed: Bluesky skips cleanup | `abort` | Not written |
+
+A stopped measurement is recorded as `success`, so a missing `COMPLETE` file
+shows that it did not finish. A source power check failure, energy configuration
+failure or `open_run` failure sends no shutter close because the shutter open
+was never attempted.
+If the strict close on the normal path fails, the measurement fails and sends
+one best-effort retry. The original exception still reaches the caller even
+if that retry fails.
+
+Strict shutter open and close commands wait up to 10 s, including the
+interactive `open_shutter` and `close_shutter` plans. A timeout fails the
+measurement and sends one best-effort close, preserving the original error.
+The best-effort close waits up to 5 s. A warning means the shutter state is
+unconfirmed, and safety relies on the interlocks. No motor moves are added on
+failure: by maintainer decision, the beam stop stays where it was because the
+detector tolerates the lab flux indefinitely.
+
+Halt skips the close, and the shutter stays open while the RunEngine is paused.
+A worker crash or power loss cannot run any cleanup.
 
 ### Snapshot stream
 
@@ -89,6 +532,109 @@ Interactive scans support:
 
 Runs are persisted via TiledWriter subscription configured in beamline startup.
 Each run’s metadata includes entry identifiers and configuration identifiers.
+
+#### Replaying backups after a Tiled outage
+
+`02_tiledwriter.py` gives TiledWriter a backup directory,
+`/home/ws8665-epics/data/tiled_backup_buffer`. If writing to Tiled fails during a
+run, the measurement carries on and every document of that run, from its start
+document on, is written to `<first part of the run uid>.jsonl` in that directory.
+The next run goes to Tiled again once it is reachable. Backup files are not sent
+to Tiled automatically. Once Tiled is back, run on the instrument PC:
+
+```bash
+mouse-bluesky tiled-replay ~/data/tiled_backup_buffer \
+  --uri https://tiled.scicat65.ddnss.de --api-key-file ~/.tiled_api.key
+```
+
+`--uri` defaults to the `TILED_URI` variable and `--api-key-file` to
+`~/.tiled_api.key`. The arguments can be backup files or directories; a directory
+means the `*.jsonl` files directly inside it. Each file is handled on its own:
+
+- run not in Tiled: written through a new TiledWriter, then the file is moved to
+  `replayed/` next to it;
+- run complete in Tiled (stop document present and, for each stream, as many
+  rows as the backup's stop document counts): not written again, and the file
+  is moved to `replayed/`;
+- run partly in Tiled (Tiled failed or recovered during the run): left alone and
+  reported. Run again with `--replace-partial` to delete the partial run and
+  write it from the backup, which always holds the whole run. That needs an API
+  key allowed to delete; otherwise ask the Tiled administrator to delete the run
+  and replay without the flag;
+- unreadable file, or a write Tiled refuses: reported, left in place, and the
+  other files are still handled. A backup is unreadable when a line is not
+  valid JSON. TiledWriter writes the backup with plain JSON, so a document
+  holding a value JSON cannot store, such as a numpy array, corrupts the file
+  and that run cannot be replayed. This is why `ad_setup` leaves the Eiger ROI
+  time-series waveforms out of every reading;
+- no stop document: left in place. TiledWriter keeps appending to a run's backup
+  until the run ends, even after Tiled is back, so the run may still be in
+  progress. Replay it after the run has finished. Use `--include-unfinished` only
+  for a run that will never finish, for example after a worker crash. Such a
+  backup is only written to Tiled when the run is not there at all. If the run is
+  partly in Tiled, it is left alone even with `--replace-partial`, because a
+  backup without a stop document cannot be shown to hold the whole run.
+
+A file in `replayed/` is never overwritten; a second copy gets a numbered name.
+The command exits 1 if any file was left in place, so it is safe to run again.
+
+## Triggering data processing
+
+`validate` and `enqueue` automatically insert one `mark_ymd_complete` plan after
+the final scheduled measurement of each YMD. Use `--no-ymd-complete` on either
+command to turn this off. There is no marker row to add to the logbook.
+After deploying, close and reopen the Queue Server environment so the new plan
+is loaded.
+
+The plan waits for local files to settle and writes
+`<root>/<YYYY>/<YMD>/READY_FOR_PROCESSING.json`, containing a file-size manifest
+and the completion state of each sequence directory. A failed marker run shows
+in Tiled with `activity: "ymd_complete"`, `exit_status: "fail"` and a reason;
+it prints a warning and does not stop the queue. Processing can be started by
+hand if needed. See the [marker contract](contracts.md#ymd-complete-marker).
+
+The following is recommended guidance for a Rundeck job on the processing host;
+the job is not implemented in this repository:
+
+1. Run every few minutes, with concurrent executions disabled in Rundeck and a
+   local lock held for the entire poll and processing run.
+2. Find `<share>/<YYYY>/<YYYYMMDD>/READY_FOR_PROCESSING.json`. The year folder
+   must have exactly four digits, and the YMD must be a real eight-digit calendar
+   date starting with that year. Ignore malformed folders, mismatched years and
+   the unresolved sentinel `20261232` silently.
+3. Skip a YMD whose current `marker_id` is recorded as `processed`, `failed`,
+   `interrupted` or `skipped`. Keep this state on the processing host, outside
+   the synced data tree.
+4. Call `check_marker` on that marker's parent YMD directory. If not ready, log
+   `problem`, `missing` and `size_mismatch`, then check readiness again on the next
+   poll. Alert once if it remains unready for a long time, for example 24 h.
+5. When ready, record the checked `marker_id` as `running` before starting the
+   pipeline. Record the outcome as `processed` or `failed`. There is no automatic
+   retry after a processing failure; alert once for that failed attempt.
+6. If a poll holds the lock and finds a `running` state without `finished` for
+   the current marker, record it as `interrupted` and alert once. An interrupted
+   run is never restarted automatically: processing can take up to an hour.
+
+After inspecting a failed or interrupted run, request an explicit retry with
+`mouse-ymd-poller retry <YMD> --config /path/to/MOUSE_settings.yaml`. A new
+`marker_id` for the same YMD also makes it eligible for processing. Subsequent
+polls skip an already recorded failure or interruption and do not alert again.
+
+Use `mouse_bluesky.processing_marker.check_marker` as the reference readiness
+check. The module uses only the standard library and can be copied to the
+Rundeck host without installing Bluesky. The share can receive the marker before
+the files, so every listed file must exist at exactly its listed size before
+processing starts. Share mtimes and extra unlisted files do not affect readiness.
+An unreadable or partially synced marker can be checked again on the next poll.
+If its ID cannot be read, preserve the YMD's recorded state; a transient read
+failure must not make a previously handled marker eligible for processing again.
+
+Re-measuring into an already processed YMD produces a new marker with a new
+`marker_id`, triggering reprocessing. Store the ID returned by the readiness
+check that authorized the pipeline run; if the marker is replaced while
+processing, its newer ID must remain eligible for the next poll. The manifest
+records incomplete sequences too, and the pipeline decides what to do with
+them. It reads `procpipeline` from the logbook as before.
 
 ## Failure modes & recovery
 
@@ -120,5 +666,6 @@ The repository includes a small `mouse-bluesky` CLI:
 
 - `mouse-bluesky validate LOGBOOK PROJECTS_DIR` compiles and statically validates the planned queue.
 - `mouse-bluesky enqueue LOGBOOK PROJECTS_DIR` compiles, validates, and enqueues into a running Queue Server via the ZMQ control address.
+- `mouse-bluesky tiled-replay BACKUPS...` writes TiledWriter backup files into Tiled after an outage (see [Replaying backups after a Tiled outage](#replaying-backups-after-a-tiled-outage)).
 
 These commands are intended for operator workflows where you want fast feedback before running the instrument.

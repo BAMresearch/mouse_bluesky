@@ -8,6 +8,7 @@ from bluesky.callbacks.mpl_plotting import (
 from bluesky.preprocessors import run_decorator
 
 from mouse_bluesky.devices.eiger import ad_configure_exposure
+from mouse_bluesky.plans.shutter import set_shutter
 
 if "bec" not in globals():
     bec = BestEffortCallback()
@@ -80,13 +81,13 @@ def reset_roistat_area():
 @run_decorator()
 def open_shutter():
     """Open the shutter of the x-ray generator."""
-    yield from bps.mv(cu_generator.shutter, 1)  # open the shutter of the x-ray generator.
+    yield from set_shutter(cu_generator.shutter, 1)  # open the shutter of the x-ray generator.
 
 
 @run_decorator()
 def close_shutter():
     """Close the shutter of the x-ray generator."""
-    yield from bps.mv(cu_generator.shutter, 0)  # close the shutter of the x-ray generator.
+    yield from set_shutter(cu_generator.shutter, 0)  # close the shutter of the x-ray generator.
 
 
 # define a step scan and a gap scan.

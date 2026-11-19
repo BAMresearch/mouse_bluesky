@@ -1,0 +1,35 @@
+# Environment: MOUSE_HTTP_READER_PASSWORD, MOUSE_HTTP_DATABASE_URI,
+# MOUSE_HTTP_SSL_CERTFILE and MOUSE_HTTP_SSL_KEYFILE. See design_documentation/operations.md.
+qserver_zmq_configuration:
+  control_address: tcp://127.0.0.1:60615
+  info_address: tcp://127.0.0.1:60625
+
+authentication:
+  allow_anonymous_access: false
+  providers:
+    - provider: mouse
+      authenticator: bluesky_httpserver.authenticators:DictionaryAuthenticator
+      args:
+        users_to_passwords:
+          timeline-reader: ${MOUSE_HTTP_READER_PASSWORD}
+
+api_access:
+  policy: bluesky_httpserver.authorization:DictionaryAPIAccessControl
+  args:
+    roles:
+      timeline_reader:
+        scopes_set: [read:status, read:queue, user:apikeys]
+      unauthenticated_public:
+        scopes_set: []
+      unauthenticated_single_user:
+        scopes_set: []
+    users:
+      timeline-reader:
+        roles: [timeline_reader]
+
+database:
+  uri: ${MOUSE_HTTP_DATABASE_URI}
+
+uvicorn:
+  ssl_certfile: ${MOUSE_HTTP_SSL_CERTFILE}
+  ssl_keyfile: ${MOUSE_HTTP_SSL_KEYFILE}

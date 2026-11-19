@@ -3224,6 +3224,103 @@ existing_plans:
         value: 3
       name: config_root
     - annotation:
+        type: '''float | None'''
+      default: None
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: detx
+    - annotation:
+        type: '''bool'''
+      default: 'False'
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: beam_stop_out
+    - annotation:
+        type: '''Mapping[str, object] | None'''
+      default: None
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: namespace
+    properties:
+      is_generator: true
+  evacuate:
+    description: Evacuate the chamber, leaving the pump on even if the plan fails.
+    module: mouse_bluesky.plans.vacuum
+    name: evacuate
+    parameters:
+    - annotation:
+        type: '''float'''
+      default: '1800.0'
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: timeout_s
+    - annotation:
+        type: '''Mapping[str, object] | None'''
+      default: None
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: namespace
+    properties:
+      is_generator: true
+  mark_ymd_complete:
+    description: Write a settled YMD manifest and audit run; filesystem failures warn and return.
+    module: mouse_bluesky.plans.processing
+    name: mark_ymd_complete
+    parameters:
+    - annotation:
+        type: '''str'''
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: ymd
+    - annotation:
+        type: '''str | None'''
+      default: None
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: root_path
+    - annotation:
+        type: '''float'''
+      default: '10.0'
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: settle_s
+    - annotation:
+        type: '''float'''
+      default: '300.0'
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: timeout_s
+    - annotation:
+        type: '''float'''
+      default: '2.0'
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: poll_interval_s
+    properties:
+      is_generator: true
+  ventilate:
+    description: Ventilate the chamber, closing the vent output when the valve sequence ends.
+    module: mouse_bluesky.plans.vacuum
+    name: ventilate
+    parameters:
+    - annotation:
+        type: '''float'''
+      default: '600.0'
+      kind:
+        name: KEYWORD_ONLY
+        value: 3
+      name: timeout_s
+    - annotation:
         type: '''Mapping[str, object] | None'''
       default: None
       kind:

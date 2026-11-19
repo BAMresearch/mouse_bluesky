@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+import math
+import time
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 from types import MappingProxyType
@@ -8,6 +10,10 @@ from types import MappingProxyType
 import h5py
 from attrs import field, frozen
 from bluesky import plan_stubs as bps
+
+from mouse_bluesky.devices.eiger import ad_configure_energy
+
+from .source import source_settings_for_config_id
 
 # NOTE: when adding devices, add them here. For example, adding syringe injector positions and
 # temperature controller setpoints would be common additions. This keeps track of what devices
@@ -211,13 +217,47 @@ def _try_resolve_dotted_name(name: str, *, namespace: Mapping[str, object] | Non
         return None
 
 
+class OptionalBaselineSignal:
+    """Record unavailable generator readbacks as NaN without blocking a run."""
+
+    def __init__(self, signal):
+        self.signal = signal
+        self.name = signal.name
+        self.parent = None
+        self._source = f"PV:{getattr(signal, 'pvname', self.name)}"
+
+    def read(self):
+        try:
+            if self.signal.connected:
+                return self.signal.read()
+        except Exception as exc:
+            print(f"Warning: could not read baseline signal {self.name}: {exc}")
+        else:
+            print(f"Warning: baseline signal {self.name} is disconnected")
+        return {self.name: {"value": math.nan, "timestamp": time.time()}}
+
+    def describe(self):
+        return {self.name: {"source": self._source, "dtype": "number", "shape": []}}
+
+    def read_configuration(self):
+        return {}
+
+    def describe_configuration(self):
+        return {}
+
+    @property
+    def hints(self):
+        return {}
+
+
 def build_baseline_signals(*, namespace: Mapping[str, object] | None = None) -> list[object]:
     """Build an ordered baseline signal list for RunEngine SupplementalData.
 
     Baseline always includes all signals mapped in ``HDF5_OPHYD_MAP_BASE``.
     Additional YZ and GI stage signals are included when their mapped objects
     can be resolved in the provided ``namespace`` (or caller/global frames).
-    X-ray generator readbacks (voltage/current) are included when available.
+    X-ray generator readbacks (voltage/current) are included when resolvable,
+    with unavailable reads recorded as NaN at run time. Other signals stay strict.
     """
     signal_names: list[str] = list(HDF5_OPHYD_MAP_BASE.values())
 
@@ -242,6 +282,8 @@ def build_baseline_signals(*, namespace: Mapping[str, object] | None = None) -> 
         if signal_id in seen_ids:
             continue
         seen_ids.add(signal_id)
+        if signal_name in GENERATOR_BASELINE_SIGNALS:
+            signal = OptionalBaselineSignal(signal)
         baseline_signals.append(signal)
 
     return baseline_signals
@@ -276,7 +318,14 @@ def collect_sensor_readbacks(*, namespace: Mapping[str, object] | None = None) -
     return values
 
 
-def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, object] | None = None) -> Iterator:
+def apply_config(
+    *,
+    config_id: int,
+    config_root: str,
+    detx: float | None = None,
+    beam_stop_out: bool = False,
+    namespace: Mapping[str, object] | None = None,
+) -> Iterator:
     """Apply a machine configuration from ``{config_root}/{config_id}.nxs``.
 
     The plan:
@@ -289,18 +338,29 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
     4. Executes grouped moves in ``MOVE_IN_GROUPS`` order to coordinate motors
        that should move together.
     5. Moves remaining mapped signals one-by-one.
+    6. Sets and verifies Eiger photon/threshold energies for the selected source.
+
+    ``detx`` overrides the detector x setpoint. ``beam_stop_out`` substitutes
+    the live beam stop's ``out_position`` for the file's bsr setpoint.
+    Both overrides are recorded in the audit run, including their defaults.
 
     Raises:
         FileNotFoundError: If the config file does not exist.
         KeyError: If required datasets are missing or a stage section is partial.
         NameError: If a mapped device root name cannot be resolved.
+        RuntimeError: If an Eiger energy readback does not reach its target.
     """
     config_file_path = Path(config_root) / f"{config_id}.nxs"
+    source = source_settings_for_config_id(config_id)
     run_md = {
         "activity": "apply_config",
         "config_id": int(config_id),
         "config_root": Path(config_root).as_posix(),
         "config_file": config_file_path.as_posix(),
+        "photon_energy_ev": source.photon_energy_ev,
+        "threshold_energy_ev": source.threshold_energy_ev,
+        "detx": detx,
+        "beam_stop_out": beam_stop_out,
     }
 
     yield from bps.open_run(md=run_md)
@@ -319,7 +379,14 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
                 hdf5_path: _resolve_dotted_name(signal_name, namespace=namespace)
                 for hdf5_path, signal_name in ophyd_map.items()
             }
+            eiger = _resolve_dotted_name("eiger", namespace=namespace)
             values = {hdf5_path: float(f[hdf5_path][()]) for hdf5_path in ophyd_map}
+
+        if detx is not None:
+            values["/saxs/Saxslab/detx"] = float(detx)
+        if beam_stop_out:
+            beam_stop = _resolve_dotted_name("beam_stop", namespace=namespace)
+            values["/saxs/Saxslab/bsr"] = float(beam_stop.out_position)
 
         moved_paths: set[str] = set()
         for group in MOVE_IN_GROUPS:
@@ -341,6 +408,11 @@ def apply_config(*, config_id: int, config_root: str, namespace: Mapping[str, ob
                 continue
             if _move_required(signal, values[hdf5_path]):
                 yield from bps.mv(signal, values[hdf5_path])
+        yield from ad_configure_energy(
+            eiger,
+            photon_energy_ev=source.photon_energy_ev,
+            threshold_energy_ev=source.threshold_energy_ev,
+        )
     except Exception as exc:
         yield from bps.close_run(exit_status="fail", reason=str(exc))
         raise
